@@ -6,7 +6,7 @@ import { Button } from '@/components/ui/Button';
 import { Card, CardBody } from '@/components/ui/Card';
 import { Badge } from '@/components/ui/Badge';
 import { services as allServices, dentists } from '@/data/demo';
-import { formatPrice } from '@/lib/utils';
+import { assetPath, formatPrice } from '@/lib/utils';
 import { dentistDisplayName } from '@/lib/labels';
 
 // ===== الصفحة الرئيسية — عربي بالكامل =====
@@ -59,7 +59,7 @@ export function HeroSection() {
       <div className="relative">
         <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border border-nova-border shadow-prominent">
           <Image
-            src="/gallery/treatment-room.jpg"
+            src={assetPath('/gallery/treatment-room.jpg')}
             alt="غرفة علاج داخل عيادة نوفا لطب الأسنان"
             fill
             priority

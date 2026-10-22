@@ -40,6 +40,10 @@ export function BrandMark({ className, compact = false }: { className?: string; 
   );
 }
 
+// The static export (GitHub Pages) has no server, so the staff area is not
+// part of it — hide the staff entry points instead of linking to a 404.
+const IS_STATIC_SITE = process.env.NEXT_PUBLIC_STATIC_SITE === '1';
+
 export function PublicLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const { isAuthenticated } = useAuth();
@@ -74,12 +78,14 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="flex items-center gap-2">
-            <Link
-              href={isAuthenticated ? '/dashboard' : '/login'}
-              className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-nova-text-secondary transition-colors hover:bg-nova-muted hover:text-nova-text sm:inline-flex"
-            >
-              {isAuthenticated ? 'لوحة التحكم' : 'دخول الطاقم'}
-            </Link>
+            {!IS_STATIC_SITE && (
+              <Link
+                href={isAuthenticated ? '/dashboard' : '/login'}
+                className="hidden rounded-lg px-3 py-2 text-sm font-semibold text-nova-text-secondary transition-colors hover:bg-nova-muted hover:text-nova-text sm:inline-flex"
+              >
+                {isAuthenticated ? 'لوحة التحكم' : 'دخول الطاقم'}
+              </Link>
+            )}
             <Link
               href="/book"
               className="hidden h-10 items-center rounded-lg bg-nova-primary px-4 text-sm font-bold text-white shadow-soft transition-colors hover:bg-nova-primary-dark sm:inline-flex"
@@ -134,13 +140,15 @@ export function PublicLayout({ children }: { children: React.ReactNode }) {
                 >
                   احجز موعد
                 </Link>
-                <Link
-                  href={isAuthenticated ? '/dashboard' : '/login'}
-                  onClick={() => setMenuOpen(false)}
-                  className="flex h-10 flex-1 items-center justify-center rounded-lg border border-nova-border px-4 text-sm font-semibold text-nova-text"
-                >
-                  {isAuthenticated ? 'لوحة التحكم' : 'دخول الطاقم'}
-                </Link>
+                {!IS_STATIC_SITE && (
+                  <Link
+                    href={isAuthenticated ? '/dashboard' : '/login'}
+                    onClick={() => setMenuOpen(false)}
+                    className="flex h-10 flex-1 items-center justify-center rounded-lg border border-nova-border px-4 text-sm font-semibold text-nova-text"
+                  >
+                    {isAuthenticated ? 'لوحة التحكم' : 'دخول الطاقم'}
+                  </Link>
+                )}
               </div>
             </nav>
           </div>

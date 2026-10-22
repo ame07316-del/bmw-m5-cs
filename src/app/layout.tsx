@@ -9,6 +9,7 @@ import { AuthProvider } from '@/components/layout/AuthProvider';
 import { NotificationProvider } from '@/components/notifications';
 import { NotificationContainer } from '@/components/ui/Notification';
 import { SITE_URL } from '@/lib/site';
+import { assetPath } from '@/lib/utils';
 
 // نفس خطوط Google (Inter + Noto Naskh Arabic — رخصة OFL، ملفاتهم في src/fonts/)
 // لكن self-hosted:
@@ -67,13 +68,13 @@ export const metadata: Metadata = {
     title: 'NOVA Dental Studio — عيادة أسنان في القاهرة',
     description:
       'رعاية أسنان شاملة بأيدي أطباء متخصصين. احجز موعدك أونلاين بخطوات بسيطة.',
-    images: [{ url: '/og.jpg', width: 1200, height: 630, alt: 'NOVA Dental Studio' }],
+    images: [{ url: assetPath('/og.jpg'), width: 1200, height: 630, alt: 'NOVA Dental Studio' }],
   },
   twitter: {
     card: 'summary_large_image',
     title: 'NOVA Dental Studio — عيادة أسنان',
     description: 'رعاية أسنان شاملة بأيدي أطباء متخصصين. احجز موعدك أونلاين.',
-    images: ['/og.jpg'],
+    images: [assetPath('/og.jpg')],
   },
   robots: {
     index: true,

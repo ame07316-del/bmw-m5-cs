@@ -9,6 +9,9 @@ out/
 build/
 dist/
 
+# Static-site build workspace (see scripts/build-static-site.mjs)
+.static-build/
+
 # Env
 .env.local
 .env.development.local
