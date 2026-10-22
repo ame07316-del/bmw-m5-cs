@@ -158,8 +158,8 @@ export default function LoginPage() {
           </div>
 
           {checkEmail ? (
-            <p className="rounded-lg bg-nova-muted p-3 text-sm text-nova-text">
-              تم إنشاء الحساب — check your email to confirm, then sign in.
+            <p className="rounded-lg bg-nova-muted p-3 text-sm leading-relaxed text-nova-text">
+              تم إنشاء الحساب. افتح بريدك الإلكتروني لتأكيد الحساب، وبعدها سجّل الدخول.
             </p>
           ) : (
           <form
@@ -169,29 +169,29 @@ export default function LoginPage() {
             {mode === 'signup' && (
               <div className="grid grid-cols-2 gap-3">
                 <div>
-                  <label htmlFor="firstName" className="mb-1 block text-xs font-medium text-nova-text">First name</label>
-                  <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="First name" />
+                  <label htmlFor="firstName" className="mb-1 block text-xs font-medium text-nova-text">الاسم الأول</label>
+                  <Input id="firstName" value={firstName} onChange={(e) => setFirstName(e.target.value)} placeholder="مثال: أحمد" />
                 </div>
                 <div>
-                  <label htmlFor="lastName" className="mb-1 block text-xs font-medium text-nova-text">Last name</label>
-                  <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="Last name" />
+                  <label htmlFor="lastName" className="mb-1 block text-xs font-medium text-nova-text">اسم العائلة</label>
+                  <Input id="lastName" value={lastName} onChange={(e) => setLastName(e.target.value)} placeholder="مثال: حسن" />
                 </div>
               </div>
             )}
 
             <div>
-              <label htmlFor="email" className="mb-1 block text-xs font-medium text-nova-text">Email</label>
+              <label htmlFor="email" className="mb-1 block text-xs font-medium text-nova-text">البريد الإلكتروني</label>
               <Input id="email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} placeholder="name@novadental.com" />
             </div>
 
             <div>
-              <label htmlFor="password" className="mb-1 block text-xs font-medium text-nova-text">Password</label>
+              <label htmlFor="password" className="mb-1 block text-xs font-medium text-nova-text">كلمة المرور</label>
               <Input id="password" type="password" value={password} onChange={(e) => setPassword(e.target.value)} placeholder="••••••••" />
             </div>
 
             {mode === 'signup' && (
-              <p className="text-xs text-nova-text-muted">
-                Public registration creates a patient account only. Staff accounts are provisioned by an administrator.
+              <p className="text-xs leading-relaxed text-nova-text-muted">
+                التسجيل العام ينشئ حساب مريض فقط. حسابات الطاقم (طبيب / سكرتيرة) تُنشأ بواسطة مدير النظام.
               </p>
             )}
 
@@ -203,8 +203,14 @@ export default function LoginPage() {
 
           <p className="text-center text-xs text-nova-text-muted">
             {mode === 'signin'
-              ? "Don't have an account? Switch to إنشاء حساب above."
-              : 'Existing staff can sign in directly.'}
+              ? 'معندكش حساب؟ اختار «إنشاء حساب» من فوق.'
+              : 'أفراد الطاقم يسجلوا الدخول مباشرة.'}
+          </p>
+
+          <p className="text-center text-xs">
+            <a href="/" className="font-semibold text-nova-primary hover:underline">
+              ← العودة إلى موقع العيادة
+            </a>
           </p>
         </CardBody>
       </Card>

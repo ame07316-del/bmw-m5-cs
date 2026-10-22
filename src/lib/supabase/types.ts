@@ -29,7 +29,11 @@ export interface Dentist {
   id: string;
   firstName: string;
   lastName: string;
+  /** Optional Arabic full name (UI only). */
+  nameAr?: string | null;
   specialty: string;
+  /** Optional Arabic label for the specialty (UI only). */
+  specialtyAr?: string | null;
   email: string;
   phone: string;
   licenseNumber: string | null;
@@ -37,6 +41,8 @@ export interface Dentist {
   patientCount: number | null;
   avatarUrl?: string | null;
   bio?: string | null;
+  /** Optional Arabic bio (UI only). */
+  bioAr?: string | null;
   qualifications?: string[] | null;
   isActive: boolean;
   schedule?: Record<string, string[]> | null;

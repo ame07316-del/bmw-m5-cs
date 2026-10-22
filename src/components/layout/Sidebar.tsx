@@ -62,7 +62,7 @@ export const navItems = [
 
 // Sidebar component
 export function Sidebar() {
-  const { sidebarOpen, toggleSidebar } = useApp();
+  const { sidebarOpen, toggleSidebar, isMobile, closeSidebar } = useApp();
   const pathname = usePathname();
   const router = useRouter();
   const { language } = useLanguage();
@@ -78,10 +78,11 @@ export function Sidebar() {
   return (
       <aside
         className={`
-          fixed inset-y-0 start-0 z-30 h-full bg-nova-surface border-e border-nova-border
+          fixed inset-y-0 start-0 z-40 h-full bg-nova-surface
           transition-all duration-300 ease-out
-          ${sidebarOpen ? 'w-64' : 'w-16'}
+          ${sidebarOpen ? 'w-64 border-e border-nova-border shadow-floating md:shadow-none' : 'w-0 overflow-hidden md:w-16 md:border-e md:border-nova-border'}
         `}
+        aria-hidden={!sidebarOpen && isMobile}
       >
       <div className="flex h-16 items-center justify-between px-4 border-b border-nova-border">
         <div className="flex items-center gap-3 overflow-hidden">
@@ -127,6 +128,7 @@ export function Sidebar() {
               <li key={item.id}>
                 <Link
                   href={item.href}
+                  onClick={() => { if (isMobile) closeSidebar(); }}
                   className={`
                     flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-medium transition-all duration-200
                     ${isActive

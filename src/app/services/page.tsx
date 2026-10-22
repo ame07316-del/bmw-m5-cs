@@ -1,7 +1,12 @@
 'use client';
 
+import { PublicLayout } from '@/components/layout/PublicLayout';
 import { ServicesPage } from '@/components/patient/ServicesPage';
 
 export default function ServicesPageRoute() {
-  return <ServicesPage />;
+  return (
+    <PublicLayout>
+      <ServicesPage />
+    </PublicLayout>
+  );
 }

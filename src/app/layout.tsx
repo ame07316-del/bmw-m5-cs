@@ -7,6 +7,8 @@ import { ThemeProvider } from '@/components/layout/ThemeProvider';
 import { LanguageProvider } from '@/components/layout/LanguageProvider';
 import { AuthProvider } from '@/components/layout/AuthProvider';
 import { NotificationProvider } from '@/components/notifications';
+import { NotificationContainer } from '@/components/ui/Notification';
+import { SITE_URL } from '@/lib/site';
 
 // نفس خطوط Google (Inter + Noto Naskh Arabic — رخصة OFL، ملفاتهم في src/fonts/)
 // لكن self-hosted:
@@ -30,11 +32,21 @@ const notoNaskhArabic = localFont({
 
 export const metadata: Metadata = {
   title: {
-    default: 'NOVA Dental Studio',
+    default: 'NOVA Dental Studio — عيادة أسنان في القاهرة',
     template: '%s | NOVA Dental Studio',
   },
-  description: 'Modern dental clinic operations system powered by AI-driven design intelligence.',
-  keywords: ['dental', 'clinic', 'healthcare', 'patient management', 'appointments'],
+  description:
+    'عيادة أسنان حديثة: فحص عام، تنظيف عميق، تبييض، تقويم، زراعة أسنان، وعلاج جذور — احجز موعدك أونلاين في دقيقة.',
+  keywords: [
+    'عيادة أسنان',
+    'طب أسنان',
+    'حجز موعد أسنان',
+    'تقويم أسنان',
+    'زراعة أسنان',
+    'تبييض أسنان',
+    'dental clinic',
+    'dentist',
+  ],
   authors: [{ name: 'NOVA Dental Studio' }],
   creator: 'NOVA Dental Studio',
   publisher: 'NOVA Dental Studio',
@@ -43,18 +55,25 @@ export const metadata: Metadata = {
     address: false,
     telephone: false,
   },
-  metadataBase: new URL(process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000'),
+  metadataBase: new URL(SITE_URL),
+  alternates: {
+    canonical: '/',
+  },
   openGraph: {
     type: 'website',
-    locale: 'en_US',
-    title: 'NOVA Dental Studio',
-    description: 'Modern dental clinic operations system.',
+    locale: 'ar_EG',
+    url: SITE_URL,
     siteName: 'NOVA Dental Studio',
+    title: 'NOVA Dental Studio — عيادة أسنان في القاهرة',
+    description:
+      'رعاية أسنان شاملة بأيدي أطباء متخصصين. احجز موعدك أونلاين بخطوات بسيطة.',
+    images: [{ url: '/og.jpg', width: 1200, height: 630, alt: 'NOVA Dental Studio' }],
   },
   twitter: {
     card: 'summary_large_image',
-    title: 'NOVA Dental Studio',
-    description: 'Modern dental clinic operations system.',
+    title: 'NOVA Dental Studio — عيادة أسنان',
+    description: 'رعاية أسنان شاملة بأيدي أطباء متخصصين. احجز موعدك أونلاين.',
+    images: ['/og.jpg'],
   },
   robots: {
     index: true,
@@ -114,6 +133,9 @@ export default function RootLayout({
                 <AuthProvider>
                   <NotificationProvider>
                     {children}
+                    {/* Toasts must be mounted once globally so public pages and
+                        the login screen can show feedback too. */}
+                    <NotificationContainer />
                   </NotificationProvider>
                 </AuthProvider>
               </DemoDataProvider>
