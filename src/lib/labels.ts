@@ -26,9 +26,14 @@ type DentistLike = {
   nameAr?: string | null;
 };
 
-/** «د. سارة سميث» — Arabic name when available, English otherwise. */
+/** «سارة سميث» — Arabic name when available, Latin name otherwise. */
+export function dentistNameAr(dentist: DentistLike): string {
+  return (dentist.nameAr ?? `${dentist.firstName} ${dentist.lastName}`).trim();
+}
+
+/** «د. سارة سميث» — display name with the Arabic honorific. */
 export function dentistDisplayName(dentist: DentistLike): string {
-  return `د. ${dentist.nameAr ?? `${dentist.firstName} ${dentist.lastName}`.trim()}`;
+  return `د. ${dentistNameAr(dentist)}`;
 }
 
 type ServiceLike = {

@@ -9,14 +9,15 @@ import { services as allServices } from '@/data/demo';
 import { useRouter } from 'next/navigation';
 import { cn, formatPrice } from '@/lib/utils';
 import { EmptyState } from '@/components/ui/EmptyState';
+import { serviceCategoryAr, serviceNameAr } from '@/lib/labels';
 
 // ===== صفحة الخدمات =====
 
 type ServiceItem = (typeof allServices)[number];
 
-const nameOf = (s: ServiceItem) => s.nameAr ?? s.name;
 const descOf = (s: ServiceItem) => s.descriptionAr ?? s.description;
-const catOf = (s: ServiceItem) => s.categoryAr ?? s.category;
+const nameOf = (s: ServiceItem) => serviceNameAr(s);
+const catOf = (s: ServiceItem) => serviceCategoryAr(s);
 
 const categoryColors: Record<string, string> = {
   وقائي: 'bg-green-100 text-green-700',

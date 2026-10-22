@@ -16,7 +16,7 @@ import { notify } from '@/components/ui/Notification';
 import { getPublicCatalog, getDoctorAvailability, getAvailableSlots, bookAppointment } from '@/app/actions';
 import { dentists as demoDentists, services as demoServices, schedules as demoSchedules } from '@/data/demo';
 import type { Service, Dentist, Schedule } from '@/lib/supabase/types';
-import { dentistDisplayName } from '@/lib/labels';
+import { dentistDisplayName, dentistNameAr } from '@/lib/labels';
 
 // ===== ترجمة الأسماء للعربية — الموقع عربي 100% =====
 const serviceArMap: Record<string, { name: string; category: string }> = {
@@ -52,10 +52,7 @@ function arSpecialty(s: string): string {
 
 type AvailabilitySlot = { start_time: string; end_time: string };
 
-/** Arabic display name for a dentist row (falls back to the Latin name). */
-function dentistName(d: { firstName: string; lastName: string; nameAr?: string | null }): string {
-  return dentistDisplayName(d).replace(/^د\.\s*/, '');
-}
+
 
 // Booking flow data types
 interface BookingData {
@@ -155,7 +152,7 @@ export function BookingFlow() {
         setBooking((prev) => ({
           ...prev,
           dentistId: dentist.id,
-          dentistName: dentistName(dentist),
+          dentistName: dentistNameAr(dentist),
           preferredDentist: false,
         }));
       }
@@ -356,7 +353,7 @@ export function BookingFlow() {
 
   const handleDentistSelect = (dentistId: string) => {
     const dentist = dentists.find((d) => d.id === dentistId);
-    const name = dentist ? dentistName(dentist) : '';
+    const name = dentist ? dentistNameAr(dentist) : '';
     setBooking((prev) => ({
       ...prev,
       dentistId,
