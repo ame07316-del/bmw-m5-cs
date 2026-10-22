@@ -1,0 +1,85 @@
+name: Deploy public site to GitHub Pages
+
+# Publishes the static build of the public clinic site (no server required).
+# The full app — staff dashboard, Supabase, Server Actions — stays on Vercel.
+#
+# GitHub Pages must be enabled once in the repository settings
+# (Settings → Pages → Source: "GitHub Actions"). Until then this workflow
+# exits early with a notice instead of failing the build.
+on:
+  push:
+    branches:
+      - main
+      - arena/2932defd-nova-dental
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build static site
+    runs-on: ubuntu-latest
+    outputs:
+      enabled: ${{ steps.check.outputs.enabled }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check whether GitHub Pages is enabled
+        id: check
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if curl -sf -H "Authorization: Bearer $GH_TOKEN" \
+            "https://api.github.com/repos/${{ github.repository }}/pages" > /dev/null; then
+            echo "enabled=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "enabled=false" >> "$GITHUB_OUTPUT"
+            echo "::notice title=GitHub Pages not enabled::Enable Settings → Pages → Source = GitHub Actions to publish the static site."
+          fi
+
+      - uses: actions/setup-node@v4
+        if: steps.check.outputs.enabled == 'true'
+        with:
+          node-version: 20
+          cache: npm
+
+      - name: Install dependencies
+        if: steps.check.outputs.enabled == 'true'
+        run: npm ci --no-audit --no-fund
+
+      - name: Configure Pages
+        if: steps.check.outputs.enabled == 'true'
+        id: pages
+        uses: actions/configure-pages@v5
+
+      - name: Build static export
+        if: steps.check.outputs.enabled == 'true'
+        run: node scripts/build-static-site.mjs
+        env:
+          NEXT_PUBLIC_BASE_PATH: /${{ github.event.repository.name }}
+          NEXT_PUBLIC_APP_URL: ${{ steps.pages.outputs.base_url }}
+
+      - name: Upload artifact
+        if: steps.check.outputs.enabled == 'true'
+        uses: actions/upload-pages-artifact@v3
+        with:
+          path: .static-build/out
+
+  deploy:
+    name: Deploy to Pages
+    needs: build
+    if: needs.build.outputs.enabled == 'true'
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

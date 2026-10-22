@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useEffect, useState } from 'react';
 import { Card } from '@/components/ui/Card';
-import { cn } from '@/lib/utils';
+import { assetPath, cn } from '@/lib/utils';
 
 /**
  * معرض العيادة — صور محلية داخل /public/gallery
@@ -22,18 +22,18 @@ interface GalleryPhoto {
 
 const PHOTOS: GalleryPhoto[] = [
   {
-    src: '/gallery/clinic-reception.jpg',
+    src: assetPath('/gallery/clinic-reception.jpg'),
     alt: 'استقبال عيادة نوفا لطب الأسنان',
     caption: 'استقبال العيادة',
     span: 'sm:col-span-2',
   },
   {
-    src: '/gallery/treatment-room.jpg',
+    src: assetPath('/gallery/treatment-room.jpg'),
     alt: 'غرفة العلاج وغرفة الأشعة داخل العيادة',
     caption: 'غرفة العلاج',
   },
   {
-    src: '/gallery/smile-care.jpg',
+    src: assetPath('/gallery/smile-care.jpg'),
     alt: 'نتيجة تبييض وتجميل الأسنان',
     caption: 'نتيجة تبييض',
   },
