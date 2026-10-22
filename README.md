@@ -6,6 +6,23 @@ Modern dental clinic operations system built with Next.js 14 (App Router), React
 
 ---
 
+## 🌐 Public Clinic Website (الموقع التعريفي)
+
+The public site is **Arabic-first (RTL)** and is what gets published:
+
+| Route | Content |
+|-------|---------|
+| `/` | Hero, trust features, top services, dentists, CTA |
+| `/services` | All services with search + category filters, prices in **EGP**, duration |
+| `/doctors` | Dentist cards with specialty filters and direct booking |
+| `/gallery` | Clinic photos with a lightbox (local images in `public/gallery`) |
+| `/contact` | Cairo address, phone, email, opening hours, contact form (demo only) |
+| `/book` | 7-step booking wizard (service → dentist → date → time → details → review → confirm) |
+| `/booking-success` | Confirmation with booking reference, service, dentist, date/time |
+
+All public pages share `PublicLayout` (site header with navigation, footer, mobile menu)
+and are wrapped in a single global toast container.
+
 ## ✨ Feature Overview
 
 ### 🦷 Patient Management
@@ -223,7 +240,7 @@ src/
 │   └── actions.ts           # All server actions
 ├── components/
 │   ├── layout/              # AppProvider, AuthProvider, ThemeProvider, LanguageProvider
-│   │                        # Sidebar, Header, AppLayout, AuthLayout
+│   │                        # Sidebar, Header, AppLayout (staff), PublicLayout (public site)
 │   ├── ui/                  # Button, Card, Input, Badge, Modal, Table
 │   ├── dental/              # Avatar, Chip, Divider, Spinner
 │   ├── notifications/       # NotificationProvider, NotificationCenter
@@ -233,7 +250,9 @@ src/
 ├── hooks/                   # useLiveData, useTheme, useLanguage, useAuth
 ├── lib/
 │   ├── supabase/            # Server & client clients, types, queries
-│   └── utils.ts             # cn(), formatDate(), storage, helpers
+│   ├── site.ts              # Canonical site URL (env → Vercel → localhost)
+│   ├── labels.ts            # Arabic labels for specialties/services/dentists
+│   └── utils.ts             # cn(), formatDate(), formatPrice(), storage, helpers
 ├── database/supabase/migrations/  # 5 sequential migration files
 └── types/                   # Shared TypeScript types
 ```
@@ -252,6 +271,25 @@ src/
 
 ---
 
+## ☁️ Deployment (Vercel)
+
+1. Import the GitHub repo into Vercel (framework is detected as Next.js).
+2. Optional environment variables — the site runs without them in demo mode:
+   - `NEXT_PUBLIC_APP_URL` — the canonical domain (used by OG/canonical/sitemap).
+   - `NEXT_PUBLIC_SUPABASE_URL`, `NEXT_PUBLIC_SUPABASE_ANON_KEY` — enables real
+     booking + staff sign-in. Without them every public page still works and the
+     booking flow explicitly says the appointment was simulated.
+3. Build command `npm run build`, output is handled automatically.
+
+Deployment notes:
+
+- `X-Frame-Options` is intentionally not sent, and CSP `frame-ancestors` allows the
+  preview/embedding hosts, so the site can be embedded in preview iframes.
+- `robots.ts` disallows staff routes (`/dashboard`, `/patients`, …) while
+  `sitemap.ts` lists only public pages.
+- Images are generated/served locally from `public/`, so no external image host is
+  required.
+
 ## ⚠️ Disclaimers
 
 - **This is a demo portfolio project**, not a production medical system.
@@ -259,6 +297,8 @@ src/
 - **Payment is made at the clinic cashier** — no online payment is handled.
 - **WhatsApp, SMS, email, and external messaging are not connected.**
 - **No real patient data is stored.** All demo records are fictional.
+- **Demo photos** in `public/gallery` are AI-generated illustrations, not real patients.
+- Prices are shown in **EGP** and are demo values.
 - The `SUPABASE_SERVICE_ROLE_KEY` is **never exposed** to client-side code. All data access goes through the anon key with Row Level Security enforcement.
 
 ---

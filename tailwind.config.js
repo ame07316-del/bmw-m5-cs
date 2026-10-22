@@ -53,8 +53,10 @@ const config = {
         arabic: ['var(--font-arabic)', 'Noto Naskh Arabic', 'Noto Sans Arabic', 'system-ui'],
         arabicHeading: ['var(--font-arabic)', 'Noto Naskh Arabic', 'serif'],
         arabicBody: ['var(--font-arabic)', 'Noto Naskh Arabic', 'Noto Sans Arabic', 'sans-serif'],
-        display: ['var(--font-inter)', 'Figtree', 'system-ui'],
-        body: ['var(--font-inter)', 'Inter', 'system-ui'],
+        // Inter covers Latin; Arabic glyphs (not shipped in Inter) fall back to
+        // the self-hosted Noto Naskh Arabic instead of the OS default font.
+        display: ['var(--font-inter)', 'Inter', 'var(--font-arabic)', 'Noto Naskh Arabic', 'system-ui'],
+        body: ['var(--font-inter)', 'Inter', 'var(--font-arabic)', 'Noto Naskh Arabic', 'system-ui'],
         mono: ['JetBrains Mono', 'Consolas', 'monospace'],
         label: ['var(--font-inter)', 'Plus Jakarta Sans', 'system-ui'],
         trust: ['var(--font-inter)', 'Lexend', 'Source Sans 3', 'sans-serif'],

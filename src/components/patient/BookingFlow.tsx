@@ -10,12 +10,13 @@ import { Select } from '@/components/ui/Input';
 import { Avatar } from '@/components/dental/AvatarsAndMore';
 import { useLanguage } from '@/components/layout/LanguageProvider';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { formatTime } from '@/lib/utils';
+import { formatPrice, formatTimeAr } from '@/lib/utils';
 import { cn } from '@/lib/utils';
 import { notify } from '@/components/ui/Notification';
 import { getPublicCatalog, getDoctorAvailability, getAvailableSlots, bookAppointment } from '@/app/actions';
 import { dentists as demoDentists, services as demoServices, schedules as demoSchedules } from '@/data/demo';
 import type { Service, Dentist, Schedule } from '@/lib/supabase/types';
+import { dentistDisplayName, dentistNameAr } from '@/lib/labels';
 
 // ===== ترجمة الأسماء للعربية — الموقع عربي 100% =====
 const serviceArMap: Record<string, { name: string; category: string }> = {
@@ -50,6 +51,8 @@ function arSpecialty(s: string): string {
 }
 
 type AvailabilitySlot = { start_time: string; end_time: string };
+
+
 
 // Booking flow data types
 interface BookingData {
@@ -149,7 +152,7 @@ export function BookingFlow() {
         setBooking((prev) => ({
           ...prev,
           dentistId: dentist.id,
-          dentistName: `${dentist.firstName} ${dentist.lastName}`,
+          dentistName: dentistNameAr(dentist),
           preferredDentist: false,
         }));
       }
@@ -284,21 +287,21 @@ export function BookingFlow() {
 
     switch (step) {
       case 1: // Service
-        if (!booking.serviceId) newErrors.serviceId = 'Please select a service';
+        if (!booking.serviceId) newErrors.serviceId = 'اختر الخدمة أولًا';
         break;
       case 2: // Dentist
-        if (!booking.dentistId && !booking.preferredDentist) newErrors.dentistId = 'Please select a dentist';
+        if (!booking.dentistId && !booking.preferredDentist) newErrors.dentistId = 'اختر طبيبًا أو «أي طبيب متاح»';
         break;
       case 3: // Date
-        if (!booking.date) newErrors.date = 'Please select a date';
+        if (!booking.date) newErrors.date = 'اختر التاريخ';
         break;
       case 4: // Time
-        if (!booking.time) newErrors.time = 'Please select a time';
+        if (!booking.time) newErrors.time = 'اختر وقت الموعد';
         break;
       case 5: // Patient info
-        if (!booking.patientName.trim()) newErrors.patientName = 'Name is required';
-        if (!booking.patientPhone.trim()) newErrors.patientPhone = 'Phone is required';
-        if (!booking.patientEmail.trim()) newErrors.patientEmail = 'Email is required';
+        if (!booking.patientName.trim()) newErrors.patientName = 'الاسم مطلوب';
+        if (!booking.patientPhone.trim()) newErrors.patientPhone = 'رقم الهاتف مطلوب';
+        if (!booking.patientEmail.trim()) newErrors.patientEmail = 'البريد الإلكتروني مطلوب';
         break;
       case 6: // Review
         // All previous steps validated
@@ -350,7 +353,7 @@ export function BookingFlow() {
 
   const handleDentistSelect = (dentistId: string) => {
     const dentist = dentists.find((d) => d.id === dentistId);
-    const name = dentist ? `${dentist.firstName ?? ''} ${dentist.lastName ?? ''}`.trim() : '';
+    const name = dentist ? dentistNameAr(dentist) : '';
     setBooking((prev) => ({
       ...prev,
       dentistId,
@@ -363,11 +366,11 @@ export function BookingFlow() {
 
     // Validate patient info before submission.
     if (!booking.patientName.trim() || !booking.patientEmail.trim() || !booking.patientPhone.trim()) {
-      notify('error', 'Missing Info', 'Please complete the patient information.');
+      notify('error', 'بيانات ناقصة', 'أكمل بيانات المريض للمتابعة.');
       return;
     }
     if (!booking.patientEmail.trim().includes('@')) {
-      notify('error', 'Invalid Email', 'Please enter a valid email address.');
+      notify('error', 'بريد غير صحيح', 'أدخل بريدًا إلكترونيًا صحيحًا.');
       return;
     }
 
@@ -375,7 +378,7 @@ export function BookingFlow() {
     const resolvedDentistId =
       booking.dentistId || dentistBySlotTime[booking.time] || dentists[0]?.id;
     if (!resolvedDentistId) {
-      notify('error', 'Booking Failed', 'No dentist is available for the selected slot.');
+      notify('error', 'تعذّر الحجز', 'لا يوجد طبيب متاح في هذا الوقت — اختر وقتًا آخر.');
       return;
     }
 
@@ -414,16 +417,32 @@ export function BookingFlow() {
             : 'Booking simulated — it will not be saved until Supabase is connected.'
         );
       } else {
-        notify('success', 'Appointment Booked!', `${booking.serviceName} on ${booking.date} at ${booking.time}. Payment is made at the clinic cashier.`);
+        notify(
+          'success',
+          'تم حجز الموعد',
+          `${selectedService ? arServiceName(selectedService) : booking.serviceName} — ${formattedDate} الساعة ${formatTimeAr(booking.time)}. الدفع عند العيادة.`
+        );
       }
       try {
-        sessionStorage.setItem('nova-last-booking', res.data.appointmentId);
+        sessionStorage.setItem(
+          'nova-last-booking',
+          JSON.stringify({
+            reference: res.data.appointmentId,
+            service: arServiceName(
+              services.find((item) => item.id === booking.serviceId) ?? ({ name: booking.serviceName } as Service)
+            ),
+            dentist: booking.dentistName || 'أي طبيب متاح',
+            date: booking.date,
+            time: formatTimeAr(booking.time),
+            demo: Boolean(res.data.demo),
+          })
+        );
       } catch {
         // storage unavailable — success page falls back gracefully
       }
       router.push('/booking-success');
     } else {
-      notify('error', 'Booking Failed', res.error);
+      notify('error', 'تعذّر إتمام الحجز', res.error);
     }
   };
 
@@ -440,14 +459,35 @@ export function BookingFlow() {
 
   const progressPercent = ((booking.step - 1) / 6) * 100;
 
+  const selectedService = booking.serviceId
+    ? services.find((item) => item.id === booking.serviceId)
+    : undefined;
+
+  const formattedDate = booking.date
+    ? new Date(`${booking.date}T00:00:00`).toLocaleDateString('ar-EG-u-nu-latn', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+        year: 'numeric',
+      })
+    : '';
+
+  const reasonLabels: Record<string, string> = {
+    checkup: 'فحص روتيني',
+    pain: 'ألم في الأسنان',
+    cosmetic: 'تجميل الأسنان',
+    orthodontics: 'تقويم',
+    emergency: 'طارئ',
+    other: 'أخرى',
+  };
+  const reasonLabel = reasonLabels[booking.reason] ?? '';
+
   return (
     <div className="space-y-6">
       <div className="text-center">
-        <h1 className="text-3xl font-bold text-nova-text">
-          {language === 'ar' ? 'احجز موعدك' : 'احجز موعدك'}
-        </h1>
-        <p className="mt-2 text-nova-text-secondary">
-          {language === 'ar' ? 'اتبع الخطوات لاحجز موعدك بنجاح' : 'اتبع الخطوات لإتمام حجزك بنجاح'}
+        <h1 className="text-3xl font-bold text-nova-text">احجز موعدك</h1>
+        <p className="mx-auto mt-2 max-w-xl text-nova-text-secondary">
+          سبع خطوات بسيطة: اختار الخدمة، الطبيب، التاريخ والوقت، وسيب بياناتك — الدفع عند العيادة.
         </p>
       </div>
 
@@ -497,9 +537,10 @@ export function BookingFlow() {
           {booking.step === 1 && (
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-nova-text">{stepTitles[1]}</h2>
-              {prefilledService && (
-                <div className="rounded-lg bg-nova-primary-light p-3 text-sm text-nova-primary-dark">
-                  ✓ {services.find((s) => s.id === prefilledService)?.name} — pre-selected
+              {selectedService && (
+                <div className="flex items-center gap-2 rounded-lg bg-nova-primary-light p-3 text-sm font-semibold text-nova-primary-dark">
+                  <span aria-hidden="true">✓</span>
+                  <span>{arServiceName(selectedService)} — تم اختيارها من صفحة الخدمات</span>
                 </div>
               )}
               {catalogLoading ? (
@@ -523,7 +564,7 @@ export function BookingFlow() {
                       <p className="text-sm font-semibold text-nova-text">{arServiceName(service)}</p>
                       <p className="text-xs text-nova-text-muted">{arServiceCat(service)} • {service.durationMinutes} دقيقة</p>
                     </div>
-                    <span className="text-sm font-bold text-nova-primary">${service.price ?? '—'}</span>
+                    <span className="text-sm font-bold text-nova-primary">{formatPrice(service.price)}</span>
                   </button>
                 ))}
                 </div>
@@ -559,8 +600,8 @@ export function BookingFlow() {
                     </svg>
                   </div>
                   <div className="flex-1">
-                    <p className="text-sm font-semibold text-nova-text">Any Available Dentist</p>
-                    <p className="text-xs text-nova-text-muted">We&apos;ll assign the nearest available dentist</p>
+                    <p className="text-sm font-semibold text-nova-text">أي طبيب متاح</p>
+                    <p className="text-xs text-nova-text-muted">هنرشح لك أقرب طبيب متاح في الموعد اللي تختاره</p>
                   </div>
                 </button>
 
@@ -577,7 +618,7 @@ export function BookingFlow() {
                     >
                       <Avatar name={`${dentist.firstName} ${dentist.lastName}`} size="md" />
                       <div className="flex-1">
-                        <p className="text-sm font-semibold text-nova-text">Dr. {dentist.firstName} {dentist.lastName}</p>
+                        <p className="text-sm font-semibold text-nova-text">{dentistDisplayName(dentist)}</p>
                         <p className="text-xs text-nova-text-muted">{arSpecialty(dentist.specialty)}</p>
                       </div>
                       {isSelected && <div className="flex h-6 w-6 items-center justify-center rounded-full bg-nova-primary text-white">
@@ -604,7 +645,9 @@ export function BookingFlow() {
               ) : (
               <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 {availableDates.map((date) => {
-                  const dayName = new Date(date + 'T00:00:00').toLocaleString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+                  const selectedDate = new Date(`${date}T00:00:00`);
+                  const dayName = selectedDate.toLocaleDateString('ar-EG-u-nu-latn', { weekday: 'long' });
+                  const dayNumber = selectedDate.toLocaleDateString('ar-EG-u-nu-latn', { day: 'numeric', month: 'long' });
                   const isSelected = booking.date === date;
                   return (
                     <button
@@ -615,7 +658,8 @@ export function BookingFlow() {
                         isSelected ? 'border-nova-primary bg-nova-primary-light' : 'border-nova-border bg-nova-surface'
                       )}
                     >
-                      <p className="text-xs font-semibold text-nova-text">{dayName}</p>
+                      <p className="text-sm font-bold text-nova-text">{dayName}</p>
+                      <p className="mt-0.5 text-[11px] text-nova-text-muted">{dayNumber}</p>
                     </button>
                   );
                 })}
@@ -629,9 +673,7 @@ export function BookingFlow() {
           {booking.step === 4 && (
             <div className="space-y-4">
               <h2 className="text-xl font-bold text-nova-text">{stepTitles[4]}</h2>
-              <p className="text-sm text-nova-text-muted">
-                {language === 'ar' ? `التاريخ المختار: ${booking.date}` : `التاريخ المختار: ${booking.date}`}
-              </p>
+              <p className="text-sm text-nova-text-muted">التاريخ المختار: {formattedDate}</p>
               {slotsLoading ? (
                 <div className="rounded-lg bg-nova-muted/40 p-4 text-center text-sm text-nova-text-muted">
                   {language === 'ar' ? 'جارٍ تحميل المواعيد المتاحة...' : 'جارٍ تحميل المواعيد المتاحة...'}
@@ -646,9 +688,8 @@ export function BookingFlow() {
                     const time = slot.start_time;
                     const isSelected = booking.time === time;
                     const slotDentist = booking.dentistId || dentistBySlotTime[time];
-                    const slotDentistName = slotDentist
-                      ? `Dr. ${dentists.find((d) => d.id === slotDentist)?.firstName ?? ''} ${dentists.find((d) => d.id === slotDentist)?.lastName ?? ''}`
-                      : '';
+                    const slotDentistRow = slotDentist ? dentists.find((d) => d.id === slotDentist) : undefined;
+                    const slotDentistName = slotDentistRow ? dentistDisplayName(slotDentistRow) : '';
                     return (
                       <button
                         key={time}
@@ -664,7 +705,7 @@ export function BookingFlow() {
                           isSelected ? 'border-nova-primary bg-nova-primary-light' : 'border-nova-border bg-nova-surface'
                         )}
                       >
-                        <p className="text-sm font-semibold text-nova-text">{formatTime(time)}</p>
+                        <p className="text-sm font-semibold text-nova-text">{formatTimeAr(time)}</p>
                         {booking.preferredDentist && slotDentistName && (
                           <p className="mt-1 truncate text-[10px] text-nova-text-muted">{slotDentistName}</p>
                         )}
@@ -779,13 +820,13 @@ export function BookingFlow() {
               <div className="space-y-4 rounded-lg bg-nova-muted/30 p-4">
                 {[
                   { label: language === 'ar' ? 'الخدمة' : 'Service', value: (serviceArMap[booking.serviceName]?.name ?? booking.serviceName) },
-                  { label: language === 'ar' ? 'الطبيب' : 'Dentist', value: booking.preferredDentist && !booking.dentistName ? 'أي طبيب متاح' : booking.dentistName },
-                  { label: language === 'ar' ? 'التاريخ' : 'Date', value: booking.date },
-                  { label: language === 'ar' ? 'الوقت' : 'Time', value: booking.time },
+                  { label: language === 'ar' ? 'الطبيب' : 'Dentist', value: booking.dentistName || 'أي طبيب متاح' },
+                  { label: language === 'ar' ? 'التاريخ' : 'Date', value: formattedDate },
+                  { label: language === 'ar' ? 'الوقت' : 'Time', value: booking.time ? formatTimeAr(booking.time) : '' },
                   { label: language === 'ar' ? 'الاسم' : 'Name', value: booking.patientName },
                   { label: language === 'ar' ? 'البريد الإلكتروني' : 'Email', value: booking.patientEmail },
                   { label: language === 'ar' ? 'الهاتف' : 'Phone', value: booking.patientPhone },
-                  { label: language === 'ar' ? 'سبب الزيارة' : 'Reason', value: booking.reason || 'N/A' },
+                  { label: language === 'ar' ? 'سبب الزيارة' : 'Reason', value: reasonLabel || 'غير محدد' },
                 ].map((item, index) => (
                   <div key={index} className="flex justify-between">
                     <span className="text-sm text-nova-text-muted">{item.label}</span>
@@ -833,8 +874,8 @@ export function BookingFlow() {
                 {[
                   { label: language === 'ar' ? 'الخدمة' : 'Service', value: (serviceArMap[booking.serviceName]?.name ?? booking.serviceName) },
                   { label: language === 'ar' ? 'الطبيب' : 'Dentist', value: booking.dentistName || 'أي طبيب متاح' },
-                  { label: language === 'ar' ? 'التاريخ' : 'Date', value: booking.date },
-                  { label: language === 'ar' ? 'الوقت' : 'Time', value: booking.time },
+                  { label: language === 'ar' ? 'التاريخ' : 'Date', value: formattedDate },
+                  { label: language === 'ar' ? 'الوقت' : 'Time', value: booking.time ? formatTimeAr(booking.time) : '' },
                   { label: language === 'ar' ? 'الاسم' : 'Name', value: booking.patientName },
                 ].map((item, index) => (
                   <div key={index} className="flex justify-between py-1">
@@ -851,13 +892,9 @@ export function BookingFlow() {
             <Button variant="outline" onClick={handleBack} disabled={booking.step === 1}>
               {language === 'ar' ? 'رجوع' : 'Back'}
             </Button>
-            {booking.step < 6 ? (
+            {booking.step < 7 ? (
               <Button onClick={handleNext}>
-                {language === 'ar' ? 'التالي' : 'Next'}
-              </Button>
-            ) : booking.step === 6 ? (
-              <Button onClick={handleNext}>
-                {language === 'ar' ? 'مراجعة' : 'Review'}
+                {booking.step === 6 ? 'تأكيد البيانات' : 'التالي'}
               </Button>
             ) : (
               <Button onClick={handleSubmitBooking} disabled={submitting} className="bg-green-600 hover:bg-green-700">

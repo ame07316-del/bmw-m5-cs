@@ -1,12 +1,12 @@
 'use client';
 
-import { AppLayout } from '@/components/layout/AppLayout';
+import { PublicLayout } from '@/components/layout/PublicLayout';
 import { GalleryGrid } from '@/components/gallery/GalleryGrid';
 
 export default function GalleryPage() {
   return (
-    <AppLayout requireAuth={false} showSidebar={false}>
+    <PublicLayout>
       <GalleryGrid />
-    </AppLayout>
+    </PublicLayout>
   );
 }

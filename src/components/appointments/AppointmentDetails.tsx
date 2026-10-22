@@ -3,6 +3,7 @@
 import { useAppointments } from './AppointmentProvider';
 import { Drawer } from '@/components/ui/Drawer';
 import { formatTimeDisplay, formatDateDisplay } from './utils';
+import { formatPrice } from '@/lib/utils';
 import { STATUS_LABELS, STATUS_COLORS } from './types';
 import type { EnrichedAppointment } from './types';
 import { AppointmentHistory } from './AppointmentHistory';
@@ -117,7 +118,7 @@ export function AppointmentDetails() {
             </div>
             <div>
               <p className="text-[10px] text-nova-text-muted">Price</p>
-              <p className="text-sm font-medium text-nova-text">{apt.price > 0 ? `${apt.price} SAR` : 'N/A'}</p>
+              <p className="text-sm font-medium text-nova-text">{apt.price > 0 ? formatPrice(apt.price, 'EGP', 'en') : 'N/A'}</p>
             </div>
           </div>
         </div>

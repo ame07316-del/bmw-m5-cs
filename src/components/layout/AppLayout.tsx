@@ -6,7 +6,6 @@ import { useApp } from '@/components/layout/AppProvider';
 import { useAuth } from '@/components/layout/AuthProvider';
 import { Sidebar } from '@/components/layout/Sidebar';
 import { Header } from '@/components/layout/Header';
-import { NotificationContainer } from '@/components/ui/Notification';
 import { cn } from '@/lib/utils';
 
 interface AppLayoutProps {
@@ -36,10 +35,10 @@ export function AppLayout({
 
   if (requireAuth && !isAuthenticated) {
     return (
-      <div className="flex min-h-screen items-center justify-center bg-nova-bg">
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-nova-bg px-4 text-center">
         <div className="flex flex-col items-center gap-4">
           <div className="h-12 w-12 animate-spin rounded-full border-2 border-nova-border border-t-nova-primary" />
-          <p className="text-sm text-nova-text-muted">Redirecting to login...</p>
+          <p className="text-sm text-nova-text-muted">جارٍ التحويل إلى صفحة تسجيل الدخول…</p>
         </div>
       </div>
     );
@@ -54,7 +53,7 @@ export function AppLayout({
       <div
         className={cn(
           'flex flex-1 flex-col transition-all duration-300',
-          showSidebar && sidebarOpen ? 'ms-64' : 'ms-16',
+          showSidebar ? (sidebarOpen ? 'md:ms-64' : 'md:ms-16') : 'ms-0',
           className
         )}
       >
@@ -63,9 +62,6 @@ export function AppLayout({
           {children}
         </main>
       </div>
-
-      {/* Notification toasts */}
-      <NotificationContainer />
     </div>
   );
 }

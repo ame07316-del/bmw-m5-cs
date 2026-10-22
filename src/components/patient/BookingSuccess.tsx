@@ -2,68 +2,110 @@
 
 import { useEffect, useState } from 'react';
 import { Button } from '@/components/ui/Button';
-import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { useLanguage } from '@/components/layout/LanguageProvider';
+import { Card, CardBody } from '@/components/ui/Card';
 import { useRouter } from 'next/navigation';
 
-// Booking success page
-export function BookingSuccess() {
-  const { language } = useLanguage();
-  const router = useRouter();
-  const [reference, setReference] = useState<string | null>(null);
+const STORAGE_KEY = 'nova-last-booking';
 
-  // Show the real booking reference from the just-completed booking.
+interface StoredBooking {
+  reference: string;
+  service?: string;
+  dentist?: string;
+  date?: string;
+  time?: string;
+  demo?: boolean;
+}
+
+function formatArabicDate(iso?: string): string | undefined {
+  if (!iso) return undefined;
+  const date = new Date(`${iso}T00:00:00`);
+  if (Number.isNaN(date.getTime())) return iso;
+  return date.toLocaleDateString('ar-EG-u-nu-latn', {
+    weekday: 'long',
+    day: 'numeric',
+    month: 'long',
+    year: 'numeric',
+  });
+}
+
+// صفحة تأكيد الحجز
+export function BookingSuccess() {
+  const router = useRouter();
+  const [booking, setBooking] = useState<StoredBooking | null>(null);
+  const [loaded, setLoaded] = useState(false);
+
   useEffect(() => {
     try {
-      setReference(sessionStorage.getItem('nova-last-booking'));
+      const raw = sessionStorage.getItem(STORAGE_KEY);
+      if (raw) {
+        // Supports both the old plain-id format and the newer JSON payload.
+        if (raw.trim().startsWith('{')) {
+          setBooking(JSON.parse(raw) as StoredBooking);
+        } else {
+          setBooking({ reference: raw });
+        }
+      }
     } catch {
-      setReference(null);
+      setBooking(null);
+    } finally {
+      setLoaded(true);
     }
   }, []);
 
+  const rows = [
+    { label: 'رقم الحجز', value: booking?.reference ? `#${booking.reference.slice(0, 8).toUpperCase()}` : 'تم التأكيد' },
+    { label: 'الخدمة', value: booking?.service },
+    { label: 'الطبيب', value: booking?.dentist },
+    { label: 'التاريخ', value: formatArabicDate(booking?.date) },
+    { label: 'الوقت', value: booking?.time },
+    { label: 'الدفع', value: 'عند العيادة' },
+    { label: 'الإلغاء', value: 'قبل ٢٤ ساعة' },
+  ].filter((row) => row.value);
+
   return (
-    <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-green-50 via-nova-bg to-nova-surface p-4">
-      <Card variant="elevated" className="max-w-md w-full overflow-hidden">
+    <div className="mx-auto max-w-lg">
+      <Card variant="elevated" className="overflow-hidden">
         <CardBody className="p-8 text-center">
           <div className="mx-auto mb-6 flex h-20 w-20 items-center justify-center rounded-full bg-green-100">
-            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2">
+            <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
               <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
               <polyline points="22 4 12 14.01 9 11.01" />
             </svg>
           </div>
-          <h1 className="text-2xl font-bold text-nova-text">
-            {language === 'ar' ? 'تم حجز الموعد بنجاح!' : 'Appointment Booked!'}
-          </h1>
-          <p className="mt-3 text-nova-text-secondary">
-            {language === 'ar'
-              ? 'لقد تم حجز موعدك بنجاح. سنتواصل معك قريباً لتأكيد الموعد.'
-              : 'Your appointment has been booked successfully. We&apos;ll contact you soon to confirm.'}
+
+          <h1 className="text-2xl font-bold text-nova-text">تم حجز الموعد بنجاح</h1>
+          <p className="mt-3 text-sm leading-relaxed text-nova-text-secondary">
+            وصلنا طلب الحجز وتم تسجيله في جدول العيادة. لو احتجت تعديل أو إلغاء، اتصل بالعيادة
+            قبل ٢٤ ساعة من الموعد.
           </p>
 
-          <div className="mt-6 space-y-3 rounded-lg bg-nova-muted/30 p-4 text-left">
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-nova-text-muted">{language === 'ar' ? 'رقم الحجز' : 'Booking Reference'}</span>
-              <span className="text-sm font-bold text-nova-primary">
-                {reference ? `#${reference.slice(0, 8).toUpperCase()}` : (language === 'ar' ? 'تم التأكيد' : 'Confirmed')}
-              </span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-nova-text-muted">{language === 'ar' ? 'الدفع' : 'Payment'}</span>
-              <span className="text-sm font-semibold text-nova-text">{language === 'ar' ? 'عند العيادة' : 'At Clinic'}</span>
-            </div>
-            <div className="flex items-center justify-between">
-              <span className="text-sm text-nova-text-muted">{language === 'ar' ? 'الإلغاء' : 'Cancellation'}</span>
-              <span className="text-sm font-semibold text-nova-text">{language === 'ar' ? 'قبل 24 ساعة' : '24 hours before'}</span>
-            </div>
-          </div>
+          {loaded && (
+            <dl className="mt-6 space-y-3 rounded-xl bg-nova-muted/40 p-4 text-start">
+              {rows.map((row) => (
+                <div key={row.label} className="flex items-start justify-between gap-4">
+                  <dt className="text-sm text-nova-text-muted">{row.label}</dt>
+                  <dd className="text-sm font-semibold text-nova-text">{row.value}</dd>
+                </div>
+              ))}
+            </dl>
+          )}
+
+          {booking?.demo && (
+            <p className="mt-4 rounded-lg border border-amber-300 bg-amber-50 p-3 text-xs leading-relaxed text-amber-800">
+              وضع العرض التجريبي: الحجز لم يُحفظ في قاعدة بيانات فعلية بعد ربط Supabase.
+            </p>
+          )}
+
+          <p className="mt-4 rounded-lg border border-dashed border-nova-border bg-nova-muted/30 p-3 text-xs text-nova-text-secondary">
+            💰 الدفع يتم عند وصولك إلى العيادة (كاش أو بطاقة).
+          </p>
 
           <div className="mt-6 flex flex-col gap-3">
             <Button className="w-full" onClick={() => router.push('/')}>
-              {language === 'ar' ? 'العودة إلى الصفحة الرئيسية' : 'Back to Home'}
+              العودة للرئيسية
             </Button>
             <Button variant="outline" className="w-full" onClick={() => router.push('/book')}>
-              {language === 'ar' ? 'حجز موعد آخر' : 'Book Another Appointment'}
+              حجز موعد آخر
             </Button>
           </div>
         </CardBody>

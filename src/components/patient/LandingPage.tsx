@@ -1,86 +1,83 @@
 'use client';
 
-import { Button } from '@/components/ui/Button';
-import { Card, CardBody, CardHeader, CardTitle } from '@/components/ui/Card';
-import { Badge } from '@/components/ui/Badge';
-import { services as allServices } from '@/data/demo';
-import { useLanguage } from '@/components/layout/LanguageProvider';
+import Image from 'next/image';
 import { useRouter } from 'next/navigation';
-import { cn } from '@/lib/utils';
-import { useState } from 'react';
+import { Button } from '@/components/ui/Button';
+import { Card, CardBody } from '@/components/ui/Card';
+import { Badge } from '@/components/ui/Badge';
+import { services as allServices, dentists } from '@/data/demo';
+import { formatPrice } from '@/lib/utils';
+import { dentistDisplayName } from '@/lib/labels';
 
-// Hero section
+// ===== الصفحة الرئيسية — عربي بالكامل =====
+
 export function HeroSection() {
-  const { language, direction } = useLanguage();
   const router = useRouter();
 
+  const stats = [
+    { value: '+٢٠٠٠', label: 'مريض سعيد' },
+    { value: '+٥٠٠', label: 'حالة علاجية' },
+    { value: '٣', label: 'أطباء متخصصون' },
+  ];
+
   return (
-    <section className="relative overflow-hidden bg-gradient-to-br from-nova-primary-light via-nova-bg to-nova-surface">
-      <div className="absolute inset-0 bg-[url('data:image/svg+xml;base64,PHN2ZyB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHdpZHRoPSI1MCIgaGVpZ2h0PSI1MCI+PGZpbHRlciBpZD0ibm9uZSI+PGZhdGE+IDwvZmF0YT48L2ZpbHRlcj48cmVjdCB3aWR0aD0iNTAiIGhlaWdodD0iNTAiIGZpbHRlciJ1cmwoIm5vbmUpIiBmaWxsPSIjMGZmMDAwIiBvZmZzZXQ9IjAuMCIvPjwvc3ZnPg==')] opacity-[0.03]" />
-      <div className="relative mx-auto max-w-7xl px-4 py-24 md:px-6 md:py-32 lg:px-8 lg:py-40">
-        <div className="grid gap-12 lg:grid-cols-2 lg:gap-16">
+    <section className="grid items-center gap-10 lg:grid-cols-2 lg:gap-16">
+      <div>
+        <Badge variant="primary" className="mb-5 px-3 py-1.5 text-xs">
+          ✦ عيادة أسنان متكاملة — القاهرة
+        </Badge>
+
+        <h1 className="text-4xl font-bold leading-[1.15] tracking-tight text-nova-text sm:text-5xl">
+          ابتسامتك تستحق
+          <span className="block text-nova-primary">العناية المثالية</span>
+        </h1>
+
+        <p className="mt-6 max-w-xl text-lg leading-relaxed text-nova-text-secondary">
+          عيادة أسنان حديثة بفريق من الأطباء المتخصصين. خدمات شاملة تشمل الفحص الوقائي،
+          تجميل الأسنان، التقويم، والجراحة — مع حجز أونلاين في أقل من دقيقة.
+        </p>
+
+        <div className="mt-8 flex flex-col gap-3 sm:flex-row">
+          <Button size="lg" onClick={() => router.push('/book')}>
+            احجز موعدك الآن
+          </Button>
+          <Button variant="outline" size="lg" onClick={() => router.push('/services')}>
+            تعرّف على الخدمات
+          </Button>
+        </div>
+
+        <dl className="mt-10 grid max-w-lg grid-cols-3 gap-4 border-t border-nova-border pt-6">
+          {stats.map((stat) => (
+            <div key={stat.label}>
+              <dt className="text-xs text-nova-text-muted">{stat.label}</dt>
+              <dd className="mt-1 text-2xl font-bold text-nova-text">{stat.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </div>
+
+      <div className="relative">
+        <div className="relative aspect-[4/3] w-full overflow-hidden rounded-3xl border border-nova-border shadow-prominent">
+          <Image
+            src="/gallery/treatment-room.jpg"
+            alt="غرفة علاج داخل عيادة نوفا لطب الأسنان"
+            fill
+            priority
+            sizes="(max-width: 1024px) 100vw, 50vw"
+            className="object-cover"
+          />
+        </div>
+
+        <div className="absolute -bottom-6 start-4 flex items-center gap-3 rounded-2xl border border-nova-border bg-nova-surface p-4 shadow-floating sm:start-8">
+          <span className="flex h-10 w-10 items-center justify-center rounded-full bg-green-100 text-green-700" aria-hidden="true">
+            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
+              <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" />
+              <polyline points="22 4 12 14.01 9 11.01" />
+            </svg>
+          </span>
           <div>
-            <Badge variant="primary" className="mb-4">NOVA Dental Studio</Badge>
-            <h1 className="text-4xl font-bold tracking-tight text-nova-text sm:text-5xl lg:text-6xl">
-              {language === 'ar'
-                ? 'ابتسامتك تستحق العناية المثالية'
-                : 'Your Smile Deserves Perfect Care'}
-            </h1>
-            <p className="mt-6 text-lg text-nova-text-secondary leading-relaxed">
-              {language === 'ar'
-                ? 'عيادة طب الأسنان الحديثة بقيادة أطباء محترفين. خدمات شاملة تشمل التجميل، التقويم، والجراحة.'
-                : 'Modern dental clinic led by professional dentists. Comprehensive services including cosmetic, orthodontic, and surgical care.'}
-            </p>
-            <div className="mt-8 flex flex-col gap-3 sm:flex-row">
-              <Button size="lg" onClick={() => router.push('/book')}>
-                {language === 'ar' ? 'احجز موعداً الآن' : 'احجز موعداً الآن'}
-              </Button>
-              <Button variant="outline" size="lg" onClick={() => router.push('/services')}>
-                {language === 'ar' ? 'استكشف الخدمات' : 'Explore Services'}
-              </Button>
-            </div>
-          </div>
-          <div className="hidden lg:flex lg:items-center lg:justify-center">
-            <div className="relative h-80 w-full">
-              <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-3xl bg-gradient-to-br from-nova-primary to-nova-primary-dark p-8 shadow-prominent">
-                <svg width="120" height="120" viewBox="0 0 24 24" fill="none" stroke="white" strokeWidth="1.5">
-                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2z" />
-                  <path d="M8 14s1.5 2 4 2 4-2 4-2" />
-                  <line x1="9" y1="9" x2="9.01" y2="9" />
-                  <line x1="15" y1="9" x2="15.01" y2="9" />
-                </svg>
-              </div>
-              <div className="absolute -left-4 top-8 rounded-2xl bg-nova-surface p-4 shadow-soft" dir="rtl">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-green-100">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#16A34A" strokeWidth="2">
-                      <path d="M22 11.08V12a10 10 0 1 1-5.93-9.14" /><polyline points="22 4 12 14.01 9 11.01" />
-                    </svg>
-                  </div>
-                  <span className="text-xs font-medium text-nova-text">500+ علاج</span>
-                </div>
-              </div>
-              <div className="absolute -right-4 top-20 rounded-2xl bg-nova-surface p-4 shadow-soft" dir="rtl">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-nova-primary-light">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#0EA5E9" strokeWidth="2">
-                      <path d="M12 2v4M12 18v4M4.93 4.93l2.83 2.83M16.24 16.24l2.83 2.83" />
-                    </svg>
-                  </div>
-                  <span className="text-xs font-medium text-nova-text">أطباء خبراء</span>
-                </div>
-              </div>
-              <div className="absolute bottom-4 left-1/2 -translate-x-1/2 rounded-2xl bg-nova-surface p-4 shadow-soft" dir="rtl">
-                <div className="flex items-center gap-2">
-                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-amber-100">
-                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="#D97706" strokeWidth="2">
-                      <circle cx="12" cy="12" r="10" /><polyline points="12 6 12 12 16 14" />
-                    </svg>
-                  </div>
-                  <span className="text-xs font-medium text-nova-text">15 دقيقة انتظار</span>
-                </div>
-              </div>
-            </div>
+            <p className="text-sm font-bold text-nova-text">تعقيم بمعايير عالمية</p>
+            <p className="text-xs text-nova-text-muted">أدوات معقّمة لكل مريض</p>
           </div>
         </div>
       </div>
@@ -88,100 +85,179 @@ export function HeroSection() {
   );
 }
 
-// Features section
 export function FeaturesSection() {
-  const { language } = useLanguage();
-
   const features = [
     {
       icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <path d="M4.27 16.2C5.12 17.2 6.31 18 7.62 18c.6 0 1-.18 1.41-.54l2.1-2.1" /><path d="M19.73 7.8C18.88 6.8 17.69 6 16.38 6c-.6 0-1 .18-1.41.54l-2.1 2.1" /><path d="M12 12h.01" />
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <path d="M12 3c-2.6 0-3.6 1.4-5 1.4S4 3.5 4 6.1c0 3.2 1.1 4.7 1.7 8.2.5 3 .9 6.3 2.4 6.3 1.5 0 1.3-3.3 2.2-5.2.5-1.2 1-1.9 1.7-1.9s1.2.7 1.7 1.9c.9 1.9.7 5.2 2.2 5.2 1.5 0 1.9-3.3 2.4-6.3C19 10.8 20 9.3 20 6.1c0-2.6-1.6-1.7-3-1.7S14.6 3 12 3Z" />
         </svg>
       ),
-      title: language === 'ar' ? 'أطباء خبراء' : 'Expert Dentists',
-      description: language === 'ar' ? 'فريق من أطباء الأسنان المتخصصين ذوي الخبرة العالية' : 'A team of highly experienced specialized dentists',
+      title: 'أطباء متخصصون',
+      description: 'فريق من أطباء الأسنان في تخصصات التقويم والجراحة والتجميل.',
     },
     {
       icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <rect x="3" y="4" width="18" height="18" rx="2" ry="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <rect x="3" y="4" width="18" height="18" rx="2" /><line x1="16" y1="2" x2="16" y2="6" /><line x1="8" y1="2" x2="8" y2="6" /><line x1="3" y1="10" x2="21" y2="10" />
         </svg>
       ),
-      title: language === 'ar' ? 'حجز مواعيد سهل' : 'Easy Booking',
-      description: language === 'ar' ? 'احجز موعدك أونلاين خلال دقائق' : 'احجز موعدك أونلاين خلال دقائق',
+      title: 'حجز أونلاين سهل',
+      description: 'اختار الخدمة والطبيب والوقت المناسب واحجز في خطوات بسيطة.',
     },
     {
       icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-          <circle cx="12" cy="12" r="10" /><line x1="2" y1="12" x2="22" y2="12" /><path d="M12 6a6 6 0 0 1 0 12" />
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
+          <circle cx="12" cy="12" r="9" /><polyline points="12 7 12 12 15.5 14" />
         </svg>
       ),
-      title: language === 'ar' ? 'خدمة على مدار الساعة' : 'Round-the-Clock Service',
-      description: language === 'ar' ? 'نقدم خدماتنا في أيام الأسبوع من الأحد إلى الخميس' : 'We provide services Sunday to Thursday',
+      title: 'مواعيد بدون انتظار',
+      description: 'جدول مواعيد منظم يقلل وقت الانتظار ويحترم وقتك.',
     },
     {
       icon: (
-        <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+        <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round">
           <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
         </svg>
       ),
-      title: language === 'ar' ? 'خصوصية وأمان' : 'Privacy & Security',
-      description: language === 'ar' ? 'بياناتك محمية وفق أعلى معايير الأمان' : 'Your data is protected with the highest security standards',
+      title: 'خصوصية وأمان',
+      description: 'بياناتك وملفك الطبي محفوظان ولا يظهران لأي طرف خارجي.',
     },
   ];
 
   return (
-    <section className="bg-nova-surface py-24">
-      <div className="mx-auto max-w-7xl px-4 md:px-6 lg:px-8">
-        <h2 className="text-center text-3xl font-bold text-nova-text sm:text-4xl">
-          {language === 'ar' ? 'لماذا نوفا؟' : 'Why Choose NOVA?'}
-        </h2>
-        <p className="mx-auto mt-4 max-w-2xl text-center text-lg text-nova-text-secondary">
-          {language === 'ar'
-            ? 'نوفر تجربة طب أسنان شاملة مع أحدث التقنيات وأطباء محترفين'
-            : 'We provide a comprehensive dental experience with cutting-edge technology and professional dentists'}
+    <section>
+      <div className="text-center">
+        <h2 className="text-3xl font-bold text-nova-text sm:text-4xl">لماذا نوفا؟</h2>
+        <p className="mx-auto mt-4 max-w-2xl text-lg text-nova-text-secondary">
+          تجربة طب أسنان شاملة — من أول فحص لحد المتابعة — بأحدث التقنيات.
         </p>
-        <div className="mt-16 grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
-          {features.map((feature, index) => (
-            <Card key={index} variant="interactive" className="p-6 text-center">
-              <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-nova-primary-light text-nova-primary-dark">
-                {feature.icon}
-              </div>
-              <h3 className="text-lg font-bold text-nova-text">{feature.title}</h3>
-              <p className="mt-2 text-sm text-nova-text-secondary">{feature.description}</p>
-            </Card>
-          ))}
-        </div>
+      </div>
+      <div className="mt-12 grid gap-5 sm:grid-cols-2 lg:grid-cols-4">
+        {features.map((feature) => (
+          <Card key={feature.title} variant="interactive" className="p-6">
+            <div className="mb-4 flex h-11 w-11 items-center justify-center rounded-xl bg-nova-primary-light text-nova-primary-dark">
+              {feature.icon}
+            </div>
+            <h3 className="text-base font-bold text-nova-text">{feature.title}</h3>
+            <p className="mt-2 text-sm leading-relaxed text-nova-text-secondary">{feature.description}</p>
+          </Card>
+        ))}
       </div>
     </section>
   );
 }
 
-// CTA section
-export function CTASection() {
-  const { language, direction } = useLanguage();
+export function ServicesPreviewSection() {
+  const router = useRouter();
+  const preview = allServices.slice(0, 3);
+
+  return (
+    <section>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-nova-text sm:text-4xl">خدماتنا الأكثر طلبًا</h2>
+          <p className="mt-3 max-w-xl text-nova-text-secondary">
+            أسعار واضحة ومدة محددة لكل خدمة — الدفع عند العيادة بدون أي رسوم أونلاين.
+          </p>
+        </div>
+        <Button variant="ghost" onClick={() => router.push('/services')}>
+          كل الخدمات ←
+        </Button>
+      </div>
+
+      <div className="mt-8 grid gap-5 md:grid-cols-3">
+        {preview.map((service) => (
+          <Card key={service.id} variant="interactive" className="overflow-hidden p-0">
+            <div className="h-1.5 bg-gradient-to-r from-nova-primary to-nova-secondary" />
+            <CardBody className="p-6">
+              <Badge variant="primary" className="mb-3">
+                {service.categoryAr ?? service.category}
+              </Badge>
+              <h3 className="text-lg font-bold text-nova-text">{service.nameAr ?? service.name}</h3>
+              <p className="mt-2 min-h-[3rem] text-sm leading-relaxed text-nova-text-secondary">
+                {service.descriptionAr ?? service.description}
+              </p>
+              <div className="mt-4 flex items-center justify-between border-t border-nova-border pt-4">
+                <div>
+                  <p className="text-xs text-nova-text-muted">تبدأ من</p>
+                  <p className="text-lg font-bold text-nova-primary">{formatPrice(service.price)}</p>
+                </div>
+                <div className="text-end">
+                  <p className="text-xs text-nova-text-muted">المدة</p>
+                  <p className="text-sm font-semibold text-nova-text">{service.durationMinutes} دقيقة</p>
+                </div>
+              </div>
+              <Button className="mt-4 w-full" onClick={() => router.push(`/book?service=${service.id}`)}>
+                احجز هذه الخدمة
+              </Button>
+            </CardBody>
+          </Card>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function DoctorsPreviewSection() {
   const router = useRouter();
 
   return (
-    <section className="bg-gradient-to-r from-nova-primary to-nova-primary-dark py-24">
-      <div className="mx-auto max-w-4xl px-4 text-center md:px-6">
-        <h2 className="text-3xl font-bold text-white sm:text-4xl">
-          {language === 'ar' ? 'هل أنت مستعد لابتسامة مثالية؟' : 'Ready for a Perfect Smile?'}
-        </h2>
-        <p className="mx-auto mt-4 max-w-xl text-lg text-nova-primary-light">
-          {language === 'ar'
-            ? 'احجز موعدك الآن ودع أطبائنا المحترفين يعيدون لك ابتسامتك'
-            : 'Book your appointment now and let our professional dentists restore your smile'}
-        </p>
-        <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
-          <Button size="lg" variant="gold" onClick={() => router.push('/book')}>
-            {language === 'ar' ? 'احجز الآن' : 'احجز الآن'}
-          </Button>
-          <Button size="lg" variant="outline" className="border-white text-white hover:bg-white/10" onClick={() => router.push('/doctors')}>
-            {language === 'ar' ? 'تعرف على أطبائنا' : 'Meet Our Doctors'}
-          </Button>
+    <section>
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+          <h2 className="text-3xl font-bold text-nova-text sm:text-4xl">تعرّف على أطبائنا</h2>
+          <p className="mt-3 max-w-xl text-nova-text-secondary">
+            فريق متخصص يغطي كل احتياجات أسنانك تحت سقف واحد.
+          </p>
         </div>
+        <Button variant="ghost" onClick={() => router.push('/doctors')}>
+          كل الأطباء ←
+        </Button>
+      </div>
+
+      <div className="mt-8 grid gap-5 md:grid-cols-3">
+        {dentists.map((dentist) => (
+          <Card key={dentist.id} variant="interactive" className="p-6 text-center">
+            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-nova-primary-light text-xl font-bold text-nova-primary-dark">
+              {(dentist.nameAr ?? `${dentist.firstName} ${dentist.lastName}`).trim().charAt(0)}
+            </div>
+            <h3 className="mt-4 text-base font-bold text-nova-text">
+              {dentistDisplayName(dentist)}
+            </h3>
+            <p className="mt-1 text-sm text-nova-text-secondary">{dentist.specialtyAr ?? dentist.specialty}</p>
+            <p className="mt-3 text-sm leading-relaxed text-nova-text-muted">{dentist.bioAr ?? dentist.bio}</p>
+            <Button variant="outline" className="mt-4 w-full" onClick={() => router.push(`/book?doctor=${dentist.id}`)}>
+              احجز معه
+            </Button>
+          </Card>
+        ))}
+      </div>
+    </section>
+  );
+}
+
+export function CTASection() {
+  const router = useRouter();
+
+  return (
+    <section className="overflow-hidden rounded-3xl bg-gradient-to-l from-nova-primary to-nova-primary-dark px-6 py-14 text-center sm:px-10">
+      <h2 className="text-3xl font-bold text-white sm:text-4xl">جاهز لابتسامة مثالية؟</h2>
+      <p className="mx-auto mt-4 max-w-xl text-base leading-relaxed text-nova-primary-light">
+        احجز موعدك الآن ودع أطباءنا يضعون خطة العلاج المناسبة لك — الدفع عند العيادة.
+      </p>
+      <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
+        <Button size="lg" variant="gold" onClick={() => router.push('/book')}>
+          احجز موعدك
+        </Button>
+        <Button
+          size="lg"
+          variant="outline"
+          className="border-white text-white hover:bg-white/10"
+          onClick={() => router.push('/contact')}
+        >
+          تواصل معنا
+        </Button>
       </div>
     </section>
   );

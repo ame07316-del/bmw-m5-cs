@@ -26,7 +26,8 @@ export function formatDate(
     ...options,
   };
 
-  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-SA' : 'en-US', defaultOptions).format(d);
+  // ar-EG keeps Gregorian dates in Arabic (ar-SA would switch to Hijri).
+  return new Intl.DateTimeFormat(locale === 'ar' ? 'ar-EG-u-nu-latn' : 'en-US', defaultOptions).format(d);
 }
 
 /**
@@ -62,11 +63,34 @@ export function formatTime(time: string): string {
 /**
  * Format currency based on locale
  */
-export function formatCurrency(amount: number, currency: string = 'SAR', locale: 'en' | 'ar' = 'en'): string {
-  return new Intl.NumberFormat(locale === 'ar' ? 'ar-SA' : 'en-US', {
+export function formatCurrency(amount: number, currency: string = 'EGP', locale: 'en' | 'ar' = 'en'): string {
+  // `-u-nu-latn` keeps Latin digits so prices match the rest of the UI
+  // (durations, dates and times all use Latin digits).
+  return new Intl.NumberFormat(locale === 'ar' ? 'ar-EG-u-nu-latn' : 'en-US', {
     style: 'currency',
     currency,
+    maximumFractionDigits: 0,
   }).format(amount);
+}
+
+/**
+ * Price label used across the public site (Arabic-first).
+ * Falls back to the currency code when Intl is unavailable.
+ */
+export function formatPrice(amount: number | null | undefined, currency: string = 'EGP', locale: 'en' | 'ar' = 'ar'): string {
+  if (amount == null || Number.isNaN(Number(amount))) return '—';
+  try {
+    return formatCurrency(Number(amount), currency || 'EGP', locale);
+  } catch {
+    return `${amount} ${currency}`;
+  }
+}
+
+/**
+ * Format time as Arabic 12-hour label, e.g. "9:30 ص".
+ */
+export function formatTimeAr(time: string): string {
+  return formatTime(time).replace('AM', 'ص').replace('PM', 'م');
 }
 
 /**
