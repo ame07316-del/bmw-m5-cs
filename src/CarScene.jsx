@@ -7,6 +7,7 @@ import { transferPercent } from './progress.js';
 import { RESUME_AFTER_DRAG_MS, advanceRotation, getLighting, performanceProfile, rotationForDrag } from './studio.js';
 import { TOUR_STOPS, getTourPose } from './tour.js';
 import { HEM_ALPHA_TEST, createCarCover, disposeCarCover } from './CarCover.js';
+import { createStudio } from './Studio.js';
 import { revealState } from './shroud.js';
 
 const MODELS = {
@@ -26,32 +27,6 @@ function makeShadowTexture() {
   context.fillStyle = gradient;
   context.fillRect(0, 0, 512, 512);
   return new THREE.CanvasTexture(canvas);
-}
-
-function makeSoftboxTexture() {
-  const canvas = document.createElement('canvas');
-  canvas.width = 128;
-  canvas.height = 256;
-  const context = canvas.getContext('2d');
-  const across = context.createLinearGradient(0, 0, canvas.width, 0);
-  across.addColorStop(0, 'rgba(255,255,255,0)');
-  across.addColorStop(0.4, 'rgba(255,255,255,0.25)');
-  across.addColorStop(0.5, 'rgba(255,255,255,0.7)');
-  across.addColorStop(0.6, 'rgba(255,255,255,0.25)');
-  across.addColorStop(1, 'rgba(255,255,255,0)');
-  context.fillStyle = across;
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  context.globalCompositeOperation = 'destination-in';
-  const vertical = context.createLinearGradient(0, 0, 0, canvas.height);
-  vertical.addColorStop(0, 'rgba(255,255,255,0)');
-  vertical.addColorStop(0.12, 'rgba(255,255,255,1)');
-  vertical.addColorStop(0.88, 'rgba(255,255,255,1)');
-  vertical.addColorStop(1, 'rgba(255,255,255,0)');
-  context.fillStyle = vertical;
-  context.fillRect(0, 0, canvas.width, canvas.height);
-  const texture = new THREE.CanvasTexture(canvas);
-  texture.colorSpace = THREE.SRGBColorSpace;
-  return texture;
 }
 
 /** A live studio camera moves through detail shots as the visitor scrolls. */
@@ -103,6 +78,7 @@ export const CarScene = forwardRef(function CarScene({
     let renderer;
     let cover = null;
     let revealAt = 0;
+    let studio = null;
     let pointerId = null;
     let lastPointerX = 0;
     let pointerStartX = 0;
@@ -130,6 +106,8 @@ export const CarScene = forwardRef(function CarScene({
         const debug = probe.getExtension('WEBGL_debug_renderer_info');
         rendererName = debug ? probe.getParameter(debug.UNMASKED_RENDERER_WEBGL) : probe.getParameter(probe.RENDERER);
       } catch { /* Some browsers hide renderer information for privacy. */ }
+      // Development only: `?hardware` previews the full studio in a software browser.
+      if (import.meta.env.DEV && new URLSearchParams(window.location.search).has('hardware')) rendererName = '';
       if (performanceProfile(rendererName, container.clientWidth, window.devicePixelRatio || 1).software) {
         renderer = new THREE.WebGLRenderer({ canvas: probeCanvas, context: probe, alpha: true, antialias: false });
         probe = null; // The renderer owns this context now.
@@ -195,6 +173,7 @@ export const CarScene = forwardRef(function CarScene({
       hemisphere.intensity = lighting.hemisphere;
       scene.environmentIntensity = lighting.environment;
       renderer.toneMappingExposure = lighting.exposure;
+      studio?.setLighting(lighting);
     }
     applyLighting();
 
@@ -209,6 +188,7 @@ export const CarScene = forwardRef(function CarScene({
       aspect = viewportWidth / viewportHeight;
       renderer.setPixelRatio(profile().pixelRatio);
       renderer.setSize(viewportWidth, viewportHeight, false);
+      studio?.resize(viewportWidth * profile().pixelRatio, viewportHeight * profile().pixelRatio);
       camera.aspect = aspect;
       camera.fov = aspect < 0.8 ? 39 : 36;
       camera.near = maximum / 500;
@@ -444,36 +424,19 @@ export const CarScene = forwardRef(function CarScene({
               cover = null;
             }
           }
-          // A real ground and a subtle inlaid ring stay fixed as the camera
-          // travels, making this a studio to move through, not a flat backdrop.
-          const ground = new THREE.Mesh(
-            new THREE.CircleGeometry(maximum * 2.2, 96),
-            new THREE.MeshBasicMaterial({ color: 0x29292d }),
-          );
-          ground.rotation.x = -Math.PI / 2;
-          ground.position.y = floorY - 0.014;
-          scene.add(ground);
-          const ring = new THREE.Mesh(
-            new THREE.RingGeometry(maximum * 0.74, maximum * 0.742, 128),
-            new THREE.MeshBasicMaterial({ color: 0x9c9b9a, transparent: true, opacity: 0.13, depthWrite: false, side: THREE.DoubleSide }),
-          );
-          ring.rotation.x = -Math.PI / 2;
-          ring.position.y = floorY - 0.005;
-          scene.add(ring);
-          // Quiet vertical softboxes sit around the set. Their parallax changes
-          // with the camera, giving the dark studio depth without obscuring the car.
-          const softboxGeometry = new THREE.PlaneGeometry(maximum * 0.11, maximum * 0.78);
-          const softboxMaterial = new THREE.MeshBasicMaterial({ color: 0xe5ded8, map: makeSoftboxTexture(), transparent: true, opacity: 0.16, depthWrite: false, side: THREE.DoubleSide, toneMapped: false });
-          const softboxes = new THREE.InstancedMesh(softboxGeometry, softboxMaterial, 8);
-          const softboxTransform = new THREE.Object3D();
-          for (let i = 0; i < 8; i += 1) {
-            const angle = (i + 0.5) * TWO_PI / 8;
-            softboxTransform.position.set(Math.sin(angle) * maximum * 1.95, floorY + maximum * 0.38, Math.cos(angle) * maximum * 1.95);
-            softboxTransform.lookAt(0, softboxTransform.position.y, 0);
-            softboxTransform.updateMatrix();
-            softboxes.setMatrixAt(i, softboxTransform.matrix);
-          }
-          scene.add(softboxes);
+          // The studio itself: dark walls, the LED line in the ceiling and
+          // polished tiles that reflect the car. Software WebGL skips the mirror.
+          const studioProfile = profile();
+          studio = createStudio(renderer, {
+            maximum,
+            floorY,
+            reflective: !studioProfile.software,
+            textureSize: viewportWidth < 700 ? 768 : 1024,
+            multisample: studioProfile.software ? 0 : 4,
+          });
+          scene.add(studio.group);
+          studio.resize(viewportWidth * studioProfile.pixelRatio, viewportHeight * studioProfile.pixelRatio);
+          applyLighting();
           const floor = new THREE.Mesh(
             new THREE.PlaneGeometry(maximum * 1.35, maximum * 1.35),
             new THREE.MeshBasicMaterial({ map: makeShadowTexture(), transparent: true, depthWrite: false, opacity: 0.72 }),
@@ -514,6 +477,8 @@ export const CarScene = forwardRef(function CarScene({
       container.removeEventListener('lostpointercapture', pointerEnd);
       container.removeEventListener('keydown', keyDown);
       renderer.domElement.removeEventListener('webglcontextlost', contextLost);
+      studio?.dispose();
+      studio = null;
       const textures = new Set();
       scene.traverse((object) => {
         if (!object.isMesh) return;
