@@ -1,57 +1,73 @@
-// The opening shot: a wide lens from the back of the studio that takes in the
-// whole room with the car standing in its middle. It holds, then pushes in
-// along the same line of sight to the first tour view, so the two frames read
-// as one continuous move. Everything is a pure function of elapsed time so the scene
-// stays deterministic and testable.
+// The opening. The studio is live from the first frame: a wide rear
+// three-quarter view of the covered car standing in the middle of the room
+// under the softbox, held behind the loading counter and the ENTER gate. When
+// the visitor enters, the camera sweeps round the car and pushes in to the
+// first tour view in one continuous move. Everything is a pure function of
+// elapsed time so the scene stays deterministic and testable.
 
 export const WIDE_SHOT = {
-  yaw: 0.2, // almost the hero angle, so the fly-in is one continuous push-in
-  tilt: 0.17, // camera height as a fraction of its distance: a raised eye line
-  distance: 2.4, // fraction of the car's longest dimension; the camera sits at the back of the room
-  target: [0, 0.05, 0], // aim a touch above the car so the ceiling line stays in frame
-  fov: 50, // wide lens; the tour uses 36–39
+  yaw: 2.4, // rear three-quarter, 45° to the car, so the softbox reads as a diamond above it
+  tilt: 0.02, // camera height as a fraction of its distance: an eye line near the roof
+  distance: 2.6, // fraction of the car's longest dimension: far back, so the car stands small in the middle
+  target: [0, 0.23, 0], // aim well above the car: it sits in the lower half, the softbox fills the top
+  fov: 40,
   mobileFrame: 0.9,
 };
 
-export const ESTABLISH_HOLD_MS = 1600;
-export const ESTABLISH_FLY_MS = 3200;
-export const ESTABLISH_REDUCED_MS = 1500;
-export const ESTABLISH_RUSH = 3.4; // time multiplier once the visitor interacts
-export const ESTABLISH_PUSH_IN = 0.035; // slow push-in during the hold, so the frame is alive
+export const ESTABLISH_FLY_MS = 4800; // the sweep from the wide shot to the first tour view
+export const ESTABLISH_REDUCED_MS = 400; // reduced motion: a beat, then a cut
+export const ESTABLISH_RUSH = 3.4; // time multiplier once the visitor interacts during the sweep
+export const ESTABLISH_PUSH_IN = 0.04; // how far the held wide shot creeps in, as a fraction of distance
+export const ESTABLISH_DRIFT_MS = 14000; // over this long; the held frame is alive, never static
+export const LIGHTS_UP_MS = 1600; // the studio lights come up over the car once it is in the room
 
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const mix = (a, b, t) => a + (b - a) * t;
+const smoothstep = (t) => t * t * (3 - 2 * t);
 const smootherstep = (t) => t * t * t * (t * (t * 6 - 15) + 10);
+const safeTime = (value) => Math.max(0, Number.isFinite(value) ? value : 0);
+
+/** How far the held wide shot has crept in, 0–1, easing out so it never visibly stops. */
+export function holdDrift(heldMs) {
+  const p = clamp(safeTime(heldMs) / ESTABLISH_DRIFT_MS, 0, 1);
+  return 1 - (1 - p) * (1 - p);
+}
+
+/** The studio lights ramp up over the covered car: 0 dark, 1 fully lit. */
+export function lightsUpLevel(elapsedMs) {
+  return smoothstep(clamp(safeTime(elapsedMs) / LIGHTS_UP_MS, 0, 1));
+}
 
 /**
- * Where the opening shot is at `elapsed` ms: 0 = wide studio, 1 = tour view.
- * `drift` is the slow push-in during the hold; `done` ends the shot.
+ * Where the sweep is at `elapsed` ms after ENTER: 0 = wide studio, 1 = tour view.
+ * `done` ends the opening.
  */
 export function establishBlend(elapsed, reducedMotion = false) {
-  const time = Math.max(0, Number.isFinite(elapsed) ? elapsed : 0);
+  const time = safeTime(elapsed);
   if (reducedMotion) {
     // A still wide view, then a cut; no sweeping camera.
     const done = time >= ESTABLISH_REDUCED_MS;
-    return { blend: done ? 1 : 0, drift: 0, done };
+    return { blend: done ? 1 : 0, done };
   }
-  if (time < ESTABLISH_HOLD_MS) return { blend: 0, drift: time / ESTABLISH_HOLD_MS, done: false };
-  const p = clamp((time - ESTABLISH_HOLD_MS) / ESTABLISH_FLY_MS, 0, 1);
-  return { blend: smootherstep(p), drift: 1, done: p >= 1 };
+  const p = clamp(time / ESTABLISH_FLY_MS, 0, 1);
+  return { blend: smootherstep(p), done: p >= 1 };
 }
 
-/** Advance the shot's clock; interaction rushes it rather than skipping abruptly. */
+/** Advance the sweep's clock; interaction rushes it rather than skipping abruptly. */
 export function advanceEstablish(clock, elapsedSeconds, rushed = false) {
   const safe = Number.isFinite(clock) ? clock : 0;
   const step = Number.isFinite(elapsedSeconds) ? clamp(elapsedSeconds, 0, 0.1) : 0;
   return safe + step * 1000 * (rushed ? ESTABLISH_RUSH : 1);
 }
 
-/** Blend the wide shot into a tour pose. `blend` 0 is the wide shot. */
+/** Blend the wide shot into a tour pose. `blend` 0 is the wide shot; `drift` is the held creep-in. */
 export function blendPose(pose, blend, drift = 0, baseFov = 36, wide = WIDE_SHOT) {
   const t = clamp(blend, 0, 1);
   const wideDistance = wide.distance * (1 - ESTABLISH_PUSH_IN * clamp(drift, 0, 1));
+  // Sweep the short way round the car.
+  const turn = Math.atan2(Math.sin(pose.yaw - wide.yaw), Math.cos(pose.yaw - wide.yaw));
   return {
-    yaw: mix(wide.yaw, pose.yaw, t),
+    yaw: wide.yaw + turn * t,
     tilt: mix(wide.tilt, pose.tilt, t),
     distance: mix(wideDistance, pose.distance, t),
     target: pose.target.map((value, i) => mix(wide.target[i], value, t)),

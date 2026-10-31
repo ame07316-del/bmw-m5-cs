@@ -1,12 +1,13 @@
 import * as THREE from 'three';
 import { Reflector } from 'three/addons/objects/Reflector.js';
+import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUniformsLib.js';
 
 // The studio is a dark room: matte walls that catch a little light at the top,
 // a continuous LED line let into the ceiling, and large dark tiles polished
 // enough to carry a reflection of whatever stands on them.
 
 export const STUDIO = {
-  halfWidth: 2.0, // room half-size as a multiple of the car's longest dimension
+  halfWidth: 2.2, // room half-size as a multiple of the car's longest dimension; the opening sweep passes the car's side inside it
   halfDepth: 2.9, // longer than wide: the opening camera stands at the back wall
   height: 1.15,
   ledInset: 0.1, // LED line inset from the walls, as a fraction of the half-size
@@ -14,7 +15,12 @@ export const STUDIO = {
   tileHeight: 0.6,
   grout: 0.012,
   tileGloss: 0.3, // how much of the mirror image shows through a tile
+  // The overhead softbox: one large panel hung over the middle of the car,
+  // aligned with it. Sizes and height are multiples of the car's longest dimension.
+  softbox: { width: 1.5, depth: 1.0, height: 0.87, intensity: 5 },
 };
+
+let areaLightsReady = false;
 
 function hash(x, y) {
   let h = (x * 374761393 + y * 668265263) | 0;
@@ -75,12 +81,49 @@ function makeWallTexture() {
   canvas.height = 512;
   const context = canvas.getContext('2d');
   const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
-  gradient.addColorStop(0, 'rgb(86, 88, 96)');
-  gradient.addColorStop(0.1, 'rgb(44, 45, 50)');
-  gradient.addColorStop(0.36, 'rgb(19, 19, 22)');
+  gradient.addColorStop(0, 'rgb(62, 64, 70)');
+  gradient.addColorStop(0.1, 'rgb(34, 35, 39)');
+  gradient.addColorStop(0.36, 'rgb(17, 17, 20)');
   gradient.addColorStop(1, 'rgb(10, 10, 12)');
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/** The face of the softbox: bright, a little hotter in the middle, with a dark frame. */
+function makeSoftboxTexture() {
+  const size = 256;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const context = canvas.getContext('2d');
+  context.fillStyle = 'rgb(22, 22, 24)';
+  context.fillRect(0, 0, size, size);
+  const frame = 5;
+  const gradient = context.createRadialGradient(size / 2, size / 2, size * 0.1, size / 2, size / 2, size * 0.72);
+  gradient.addColorStop(0, 'rgb(255, 255, 255)');
+  gradient.addColorStop(0.7, 'rgb(236, 238, 244)');
+  gradient.addColorStop(1, 'rgb(205, 209, 220)');
+  context.fillStyle = gradient;
+  context.fillRect(frame, frame, size - frame * 2, size - frame * 2);
+  const texture = new THREE.CanvasTexture(canvas);
+  texture.colorSpace = THREE.SRGBColorSpace;
+  return texture;
+}
+
+/** Radial bloom for the softbox: the panel's own light scattering around it. */
+function makeHaloTexture() {
+  const size = 128;
+  const canvas = document.createElement('canvas');
+  canvas.width = canvas.height = size;
+  const context = canvas.getContext('2d');
+  const gradient = context.createRadialGradient(size / 2, size / 2, size * 0.2, size / 2, size / 2, size / 2);
+  gradient.addColorStop(0, 'rgba(255,255,255,1)');
+  gradient.addColorStop(0.55, 'rgba(255,255,255,.35)');
+  gradient.addColorStop(1, 'rgba(255,255,255,0)');
+  context.fillStyle = gradient;
+  context.fillRect(0, 0, size, size);
   const texture = new THREE.CanvasTexture(canvas);
   texture.colorSpace = THREE.SRGBColorSpace;
   return texture;
@@ -107,7 +150,7 @@ function makeGlowTexture() {
  * Build the room around a car of the given size. `floorY` is the top of the
  * tiles; `reflective` adds the planar reflection (skipped on software WebGL).
  */
-export function createStudio(renderer, { maximum, floorY, reflective = true, textureSize = 1024, multisample = 4 }, settings = STUDIO) {
+export function createStudio(renderer, { maximum, floorY, reflective = true, areaLight = true, textureSize = 1024, multisample = 4 }, settings = STUDIO) {
   const group = new THREE.Group();
   group.name = 'studio';
   const halfW = maximum * settings.halfWidth;
@@ -191,19 +234,73 @@ export function createStudio(renderer, { maximum, floorY, reflective = true, tex
   bar(insetD * 2, insetW, 0, Math.PI / 2);
   disposables.push(() => { ledMaterial.dispose(); glowMaterial.dispose(); glowTexture.dispose(); });
 
+  // The softbox: a glowing panel hung over the car, and the area light that
+  // actually lights the car from it. Software WebGL keeps the panel only.
+  const box = settings.softbox;
+  const softboxWidth = maximum * box.width;
+  const softboxDepth = maximum * box.depth;
+  const softboxY = floorY + maximum * box.height;
+  const softbox = new THREE.Group();
+  softbox.name = 'softbox';
+  softbox.position.set(0, softboxY, 0);
+  const softboxTexture = makeSoftboxTexture();
+  const softboxMaterial = new THREE.MeshBasicMaterial({ map: softboxTexture, toneMapped: false, side: THREE.DoubleSide });
+  const panel = new THREE.Mesh(new THREE.PlaneGeometry(softboxWidth, softboxDepth), softboxMaterial);
+  panel.rotation.x = Math.PI / 2; // face down
+  softbox.add(panel);
+  // A soft halo under the panel so its edges bloom a little instead of cutting hard.
+  const haloTexture = makeHaloTexture();
+  const haloMaterial = new THREE.MeshBasicMaterial({ map: haloTexture, color: 0xe8ecf8, transparent: true, opacity: 0.3, depthWrite: false, blending: THREE.AdditiveBlending, side: THREE.DoubleSide, toneMapped: false });
+  const halo = new THREE.Mesh(new THREE.PlaneGeometry(softboxWidth * 1.3, softboxDepth * 1.4), haloMaterial);
+  halo.rotation.x = Math.PI / 2;
+  halo.position.y = -maximum * 0.004;
+  softbox.add(halo);
+  const housingMaterial = new THREE.MeshBasicMaterial({ color: 0x151517 });
+  const housing = new THREE.Mesh(new THREE.BoxGeometry(softboxWidth + maximum * 0.012, maximum * 0.012, softboxDepth + maximum * 0.012), housingMaterial);
+  housing.position.y = maximum * 0.007;
+  softbox.add(housing);
+  let softboxLight = null;
+  if (areaLight) {
+    if (!areaLightsReady) {
+      RectAreaLightUniformsLib.init();
+      areaLightsReady = true;
+    }
+    softboxLight = new THREE.RectAreaLight(0xffffff, box.intensity, softboxWidth, softboxDepth);
+    softboxLight.position.y = -0.01;
+    softboxLight.rotation.x = -Math.PI / 2; // emit downwards
+    softbox.add(softboxLight);
+  }
+  group.add(softbox);
+  disposables.push(() => { panel.geometry.dispose(); softboxMaterial.dispose(); softboxTexture.dispose(); halo.geometry.dispose(); haloMaterial.dispose(); haloTexture.dispose(); housing.geometry.dispose(); housingMaterial.dispose(); softboxLight?.dispose(); });
+
   const tint = new THREE.Color();
+  const white = new THREE.Color(1, 1, 1);
   return {
     group,
     reflector,
+    softbox: { group: softbox, panel, light: softboxLight, width: softboxWidth, depth: softboxDepth, y: softboxY },
     bounds: { halfW, halfD, height, ceilingY },
-    /** Lighting presets tint the walls and scale the room with the intensity slider. */
-    setLighting(lighting) {
+    /**
+     * Lighting presets tint the walls and scale the room with the intensity
+     * slider; `up` (0–1) is the lights-up ramp when the car arrives.
+     */
+    setLighting(lighting, up = 1) {
+      const level = lighting.level / 100;
       const [r, g, b] = String(lighting.room || '180, 185, 194').split(',').map((part) => Number(part) / 255);
-      const scale = 0.45 + 0.55 * (lighting.level / 100);
+      const scale = (0.45 + 0.55 * level) * up;
       tint.setRGB(r, g, b).multiplyScalar(scale / Math.max(r, g, b, 1e-3));
       wallMaterial.color.copy(tint);
-      tiles.material.color.copy(tint).lerp(new THREE.Color(1, 1, 1), 0.6);
-      glowMaterial.opacity = 0.18 + 0.2 * (lighting.level / 100);
+      tiles.material.color.copy(tint).lerp(white, 0.6 * up);
+      glowMaterial.opacity = (0.18 + 0.2 * level) * up;
+      ledMaterial.color.setScalar(0.3 + 0.7 * up);
+      // The softbox never goes fully dark while the studio is lit: it is the room's light.
+      const panelLevel = (0.12 + 0.88 * level) * up;
+      softboxMaterial.color.setScalar(panelLevel);
+      haloMaterial.opacity = 0.3 * panelLevel;
+      if (softboxLight) {
+        softboxLight.intensity = (Number.isFinite(lighting.softbox) ? lighting.softbox : box.intensity) * up;
+        softboxLight.color.setHex(lighting.keyColor ?? 0xffffff);
+      }
     },
     resize(width, height) {
       if (!reflector) return;

@@ -1,7 +1,7 @@
 import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { ExperienceAudio } from './audio.js';
 import { Preloader } from './Preloader.jsx';
-import { INTRO_REVEAL_MS, introProgress, introWait } from './intro.js';
+import { introProgress, introWait } from './intro.js';
 import { DEFAULT_BRIGHTNESS, DEFAULT_LIGHT_PRESET, LIGHT_PRESETS, clampBrightness, getLighting } from './studio.js';
 import { TOUR_STOPS, activeTourIndex, progressFromOffsets } from './tour.js';
 
@@ -51,6 +51,7 @@ export default function App() {
   const [igniting, setIgniting] = useState(false);
   const [soundNotice, setSoundNotice] = useState('');
   const [covered, setCovered] = useState(true);
+  const [sceneLive, setSceneLive] = useState(false);
   const coveredRef = useRef(true);
   const introStartedAt = useRef(performance.now());
   const audioRef = useRef(null);
@@ -60,10 +61,13 @@ export default function App() {
   const autoplayAttempted = useRef(false);
   const soundRequest = useRef(0);
   const timer = useRef(null);
-  const loading = phase === 'loading' || phase === 'revealing';
+  // loading: the counter over the live studio · invite: the ENTER gate over the
+  // held wide shot · establishing: the sweep to the first view · ready: the tour.
+  const loading = phase === 'loading';
+  const inviting = phase === 'invite';
   const establishing = phase === 'establishing';
   // The interface stays out of the way until the opening shot has arrived.
-  const settling = loading || establishing;
+  const settling = loading || inviting || establishing;
   const visualAvailable = phase !== 'error';
   const lighting = getLighting(lightPreset, brightness);
 
@@ -127,18 +131,9 @@ export default function App() {
   useEffect(() => {
     if (!modelReady || phase !== 'loading') return undefined;
     const wait = introWait(performance.now() - introStartedAt.current, reducedMotion);
-    const timeout = window.setTimeout(() => {
-      audioRef.current?.ready();
-      setPhase(reducedMotion ? 'establishing' : 'revealing');
-    }, wait);
+    const timeout = window.setTimeout(() => setPhase('invite'), wait);
     return () => clearTimeout(timeout);
   }, [modelReady, phase, reducedMotion]);
-
-  useEffect(() => {
-    if (phase !== 'revealing') return undefined;
-    const timeout = window.setTimeout(() => setPhase('establishing'), reducedMotion ? 0 : INTRO_REVEAL_MS);
-    return () => clearTimeout(timeout);
-  }, [phase, reducedMotion]);
 
   useEffect(() => {
     const original = document.documentElement.style.overflow;
@@ -202,6 +197,28 @@ export default function App() {
     setCovered(false);
   }, []);
   const handleReady = useCallback(() => { setProgress(100); setModelReady(true); }, []);
+  const handleFirstFrame = useCallback(() => setSceneLive(true), []);
+  // ENTER is the visitor's gesture: it starts the sweep and lets the sound through.
+  const enter = () => {
+    if (phase !== 'invite') return;
+    setPhase('establishing');
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.ready();
+    if (interacted.current || autoplayAttempted.current) return;
+    autoplayAttempted.current = true;
+    const request = ++soundRequest.current;
+    audio.tryAutoplay().then((enabled) => {
+      if (!interacted.current && audioRef.current === audio && request === soundRequest.current) setSoundOn(enabled);
+    });
+  };
+  // A system reduced-motion setting is a default here, not a lock: the visitor
+  // can ask for the full cinematic from the gate.
+  const enterWithMotion = () => {
+    setReducedMotion(false);
+    setAutoRotate(true);
+    enter();
+  };
   const handleError = useCallback((error) => {
     console.error('The M4 visual could not be loaded:', error);
     setPhase('error');
@@ -209,8 +226,7 @@ export default function App() {
   const retry = () => window.location.reload();
   const skipIntro = () => {
     if (!modelReady || phase !== 'loading') return;
-    audioRef.current?.ready();
-    setPhase(reducedMotion ? 'establishing' : 'revealing');
+    setPhase('invite');
   };
   const goTo = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
@@ -249,7 +265,7 @@ export default function App() {
 
   return (
     <main
-      className={`experience ${covered ? 'is-covered' : ''} ${establishing ? 'is-establishing' : ''} ${phase === 'ready' ? 'is-ready' : ''} ${loading ? 'intro-active' : ''} ${phase === 'revealing' ? 'intro-revealing' : ''} ${phase === 'error' ? 'has-error' : ''} ${igniting ? 'is-igniting' : ''}`}
+      className={`experience ${covered ? 'is-covered' : ''} ${settling ? 'is-settling' : ''} ${inviting ? 'is-inviting' : ''} ${establishing ? 'is-establishing' : ''} ${phase === 'ready' ? 'is-ready' : ''} ${loading ? 'intro-active' : ''} ${sceneLive ? 'scene-live' : ''} ${reducedMotion ? 'is-reduced' : ''} ${phase === 'error' ? 'has-error' : ''} ${igniting ? 'is-igniting' : ''}`}
       style={{ '--room-rgb': lighting.room, '--room-strength': 0.06 + brightness / 100 * 0.2, '--intensity': `${brightness}%` }}
     >
       <div className="stage-background" aria-hidden="true"><div className="stage-floor" /></div>
@@ -257,10 +273,10 @@ export default function App() {
       {visualAvailable && (
         <SceneBoundary onError={handleError}>
           <Suspense fallback={null}>
-            <CarScene ref={sceneRef} paused={phase !== 'ready' && phase !== 'establishing'} establishing={establishing} onEstablished={handleEstablished} autoRotate={autoRotate} tourPosition={tourPosition}
+            <CarScene ref={sceneRef} paused={false} interactive={phase === 'ready'} establishing={establishing} onEstablished={handleEstablished} autoRotate={autoRotate} tourPosition={tourPosition}
               lightPreset={lightPreset} brightness={brightness} reducedMotion={reducedMotion}
               covered={covered} onUnveil={unveil}
-              onProgress={handleProgress} onReady={handleReady} onError={handleError} />
+              onProgress={handleProgress} onReady={handleReady} onFirstFrame={handleFirstFrame} onError={handleError} />
           </Suspense>
         </SceneBoundary>
       )}
@@ -388,7 +404,17 @@ export default function App() {
       </div>
 
       {phase === 'error' && <div className="scene-error" role="alert"><div><span>3D VIEW UNAVAILABLE</span><p>We couldn’t load the studio. The preview is shown instead.</p></div><button type="button" onClick={retry}>TRY AGAIN ↗</button></div>}
-      {loading && <Preloader progress={displayedProgress} leaving={phase === 'revealing'} ready={modelReady} slow={slowLoading} onSkip={skipIntro} onRetry={retry} />}
+      {(loading || inviting) && <Preloader progress={displayedProgress} leaving={inviting} ready={modelReady} slow={slowLoading} onSkip={skipIntro} onRetry={retry} />}
+      {(inviting || establishing) && (
+        <section className={`gate ${inviting ? 'gate--open' : ''} ${establishing ? 'gate--leaving' : ''}`} aria-label="Enter the BMW M4 experience" inert={establishing ? true : undefined}>
+          <p className="section-kicker">THE BMW</p>
+          <p className="gate__title" aria-hidden="true">M4</p>
+          <p className="gate__line">Made to be <em>felt.</em></p>
+          <button className="gate__enter" type="button" onClick={enter} autoFocus>ENTER</button>
+          <p className="gate__hint">SOUND ON FOR THE FULL EXPERIENCE</p>
+          {reducedMotion && <button className="gate__motion" type="button" onClick={enterWithMotion}>YOUR SYSTEM PREFERS REDUCED MOTION — PLAY THE FULL CINEMATIC <span aria-hidden="true">↗</span></button>}
+        </section>
+      )}
       <span className="sr-only" role="status" aria-live="polite">{soundNotice}</span>
     </main>
   );
