@@ -412,7 +412,7 @@ export default function App() {
           <p className="gate__line">Made to be <em>felt.</em></p>
           <button className="gate__enter" type="button" onClick={enter} autoFocus>ENTER</button>
           <p className="gate__hint">SOUND ON FOR THE FULL EXPERIENCE</p>
-          {reducedMotion && <button className="gate__motion" type="button" onClick={enterWithMotion}>YOUR SYSTEM PREFERS REDUCED MOTION — PLAY THE FULL CINEMATIC <span aria-hidden="true">↗</span></button>}
+          {reducedMotion && <button className="gate__motion" type="button" onClick={enterWithMotion}>YOUR SYSTEM PREFERS REDUCED MOTION — ENTER WITH FULL MOTION <span aria-hidden="true">↗</span></button>}
         </section>
       )}
       <span className="sr-only" role="status" aria-live="polite">{soundNotice}</span>

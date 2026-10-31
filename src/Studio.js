@@ -7,7 +7,7 @@ import { RectAreaLightUniformsLib } from 'three/addons/lights/RectAreaLightUnifo
 // enough to carry a reflection of whatever stands on them.
 
 export const STUDIO = {
-  halfWidth: 2.2, // room half-size as a multiple of the car's longest dimension; the opening sweep passes the car's side inside it
+  halfWidth: 2.4, // room half-size as a multiple of the car's longest dimension; the opening sweep passes the car's side inside it
   halfDepth: 2.9, // longer than wide: the opening camera stands at the back wall
   height: 1.15,
   ledInset: 0.1, // LED line inset from the walls, as a fraction of the half-size

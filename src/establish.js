@@ -15,8 +15,6 @@ export const WIDE_SHOT = {
 };
 
 export const ESTABLISH_FLY_MS = 4800; // the sweep from the wide shot to the first tour view
-export const ESTABLISH_REDUCED_MS = 400; // reduced motion: a beat, then a cut
-export const ESTABLISH_RUSH = 3.4; // time multiplier once the visitor interacts during the sweep
 export const ESTABLISH_PUSH_IN = 0.04; // how far the held wide shot creeps in, as a fraction of distance
 export const ESTABLISH_DRIFT_MS = 14000; // over this long; the held frame is alive, never static
 export const LIGHTS_UP_MS = 1600; // the studio lights come up over the car once it is in the room
@@ -24,7 +22,6 @@ export const LIGHTS_UP_MS = 1600; // the studio lights come up over the car once
 const clamp = (value, min, max) => Math.max(min, Math.min(max, value));
 const mix = (a, b, t) => a + (b - a) * t;
 const smoothstep = (t) => t * t * (3 - 2 * t);
-const smootherstep = (t) => t * t * t * (t * (t * 6 - 15) + 10);
 const safeTime = (value) => Math.max(0, Number.isFinite(value) ? value : 0);
 
 /** How far the held wide shot has crept in, 0–1, easing out so it never visibly stops. */
@@ -40,36 +37,35 @@ export function lightsUpLevel(elapsedMs) {
 
 /**
  * Where the sweep is at `elapsed` ms after ENTER: 0 = wide studio, 1 = tour view.
- * `done` ends the opening.
+ * ENTER is the visitor's own request for the move, so it always plays; the
+ * system reduced-motion setting governs the turntable and the scroll tour.
+ * `done` ends the opening. Nothing can rush or skip it: it begins at once,
+ * gently, and settles on arrival.
  */
-export function establishBlend(elapsed, reducedMotion = false) {
-  const time = safeTime(elapsed);
-  if (reducedMotion) {
-    // A still wide view, then a cut; no sweeping camera.
-    const done = time >= ESTABLISH_REDUCED_MS;
-    return { blend: done ? 1 : 0, done };
-  }
-  const p = clamp(time / ESTABLISH_FLY_MS, 0, 1);
-  return { blend: smootherstep(p), done: p >= 1 };
+export function establishBlend(elapsed) {
+  const p = clamp(safeTime(elapsed) / ESTABLISH_FLY_MS, 0, 1);
+  return { blend: smoothstep(p), done: p >= 1 };
 }
 
-/** Advance the sweep's clock; interaction rushes it rather than skipping abruptly. */
-export function advanceEstablish(clock, elapsedSeconds, rushed = false) {
+/** Advance the sweep's clock; a stalled or background frame never jumps it. */
+export function advanceEstablish(clock, elapsedSeconds) {
   const safe = Number.isFinite(clock) ? clock : 0;
   const step = Number.isFinite(elapsedSeconds) ? clamp(elapsedSeconds, 0, 0.1) : 0;
-  return safe + step * 1000 * (rushed ? ESTABLISH_RUSH : 1);
+  return safe + step * 1000;
 }
 
 /** Blend the wide shot into a tour pose. `blend` 0 is the wide shot; `drift` is the held creep-in. */
 export function blendPose(pose, blend, drift = 0, baseFov = 36, wide = WIDE_SHOT) {
   const t = clamp(blend, 0, 1);
   const wideDistance = wide.distance * (1 - ESTABLISH_PUSH_IN * clamp(drift, 0, 1));
-  // Sweep the short way round the car.
+  // Sweep the short way round the car, and come in sooner than the turn so the
+  // camera swoops past the car's side instead of skirting the walls.
   const turn = Math.atan2(Math.sin(pose.yaw - wide.yaw), Math.cos(pose.yaw - wide.yaw));
+  const approach = 1 - (1 - t) * (1 - t);
   return {
     yaw: wide.yaw + turn * t,
     tilt: mix(wide.tilt, pose.tilt, t),
-    distance: mix(wideDistance, pose.distance, t),
+    distance: mix(wideDistance, pose.distance, approach),
     target: pose.target.map((value, i) => mix(wide.target[i], value, t)),
     shift: pose.shift * t,
     mobileShift: pose.mobileShift * t,

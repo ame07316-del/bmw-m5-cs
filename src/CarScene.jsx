@@ -102,7 +102,6 @@ export const CarScene = forwardRef(function CarScene({
     // frame; ENTER starts the sweep clock; the lights come up when the car arrives.
     let established = false;
     let establishClock = 0;
-    let rushed = false;
     let heldSince = 0;
     let lightsUpAt = 0;
     let lightsUp = 0;
@@ -277,7 +276,7 @@ export const CarScene = forwardRef(function CarScene({
       let fov = baseFov;
       let opening = null;
       if (!established) {
-        opening = settingsRef.current.establishing ? establishBlend(establishClock, settingsRef.current.reducedMotion) : { blend: 0, done: false };
+        opening = settingsRef.current.establishing ? establishBlend(establishClock) : { blend: 0, done: false };
         pose = blendPose(pose, opening.blend, holdDrift(now - heldSince), baseFov);
         fov = pose.fov;
       }
@@ -348,8 +347,8 @@ export const CarScene = forwardRef(function CarScene({
       const settings = settingsRef.current;
       const guided = tourRef.current > 0.12;
       if (!established && settings.establishing) {
-        establishClock = advanceEstablish(establishClock, elapsed, rushed);
-        if (establishBlend(establishClock, settings.reducedMotion).done) {
+        establishClock = advanceEstablish(establishClock, elapsed);
+        if (establishBlend(establishClock).done) {
           established = true;
           // Let the arrival settle before the turntable starts to move.
           resumeAt = now + 2500;
@@ -447,7 +446,6 @@ export const CarScene = forwardRef(function CarScene({
       lastTick = 0;
       invalidate();
     };
-    const rush = () => { if (!established && settingsRef.current.establishing) rushed = true; };
     const keyDown = (event) => {
       if (settingsRef.current.paused || !model || !established) return;
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
@@ -485,9 +483,6 @@ export const CarScene = forwardRef(function CarScene({
     container.addEventListener('pointercancel', pointerEnd);
     container.addEventListener('lostpointercapture', pointerEnd);
     container.addEventListener('keydown', keyDown);
-    window.addEventListener('pointerdown', rush, { passive: true });
-    window.addEventListener('wheel', rush, { passive: true });
-    window.addEventListener('keydown', rush);
     if (!settingsRef.current.paused) invalidate();
 
     // Keep the full model on hardware-accelerated desktops; a carefully
@@ -574,9 +569,6 @@ export const CarScene = forwardRef(function CarScene({
       container.removeEventListener('pointercancel', pointerEnd);
       container.removeEventListener('lostpointercapture', pointerEnd);
       container.removeEventListener('keydown', keyDown);
-      window.removeEventListener('pointerdown', rush);
-      window.removeEventListener('wheel', rush);
-      window.removeEventListener('keydown', rush);
       renderer.domElement.removeEventListener('webglcontextlost', contextLost);
       studio?.dispose();
       studio = null;

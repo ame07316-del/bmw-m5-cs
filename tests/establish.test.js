@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
-  ESTABLISH_DRIFT_MS, ESTABLISH_FLY_MS, ESTABLISH_REDUCED_MS, ESTABLISH_RUSH, LIGHTS_UP_MS, WIDE_SHOT,
+  ESTABLISH_DRIFT_MS, ESTABLISH_FLY_MS, LIGHTS_UP_MS, WIDE_SHOT,
   advanceEstablish, blendPose, establishBlend, holdDrift, lightsUpLevel,
 } from '../src/establish.js';
 import { TOUR_STOPS, getTourPose } from '../src/tour.js';
@@ -13,10 +13,16 @@ test('the sweep eases out of the held wide shot and finishes on the tour view', 
   assert.equal(start.done, false);
   const early = establishBlend(ESTABLISH_FLY_MS * 0.05);
   assert.ok(early.blend < 0.01, 'the sweep eases in, no jolt on ENTER');
+  const soon = establishBlend(ESTABLISH_FLY_MS * 0.2);
+  assert.ok(soon.blend > 0.08, 'but it is visibly under way within a second: ENTER never looks ignored');
   const middle = establishBlend(ESTABLISH_FLY_MS * 0.5);
   assert.ok(middle.blend > 0.3 && middle.blend < 0.7);
   const late = establishBlend(ESTABLISH_FLY_MS * 0.95);
   assert.ok(late.blend > 0.99, 'and settles gently on arrival');
+  // No frame may move the camera by a jump: the steepest step at 60 fps is small.
+  let largest = 0;
+  for (let t = 0; t < ESTABLISH_FLY_MS; t += 16) largest = Math.max(largest, establishBlend(t + 16).blend - establishBlend(t).blend);
+  assert.ok(largest < 0.006, `steepest per-frame step ${largest}`);
   const end = establishBlend(ESTABLISH_FLY_MS);
   assert.equal(end.blend, 1);
   assert.equal(end.done, true);
@@ -42,16 +48,15 @@ test('the studio lights ramp up smoothly over the arriving car', () => {
   assert.equal(lightsUpLevel(-5), 0);
 });
 
-test('reduced motion shows a still wide view and then cuts', () => {
-  assert.deepEqual(establishBlend(ESTABLISH_REDUCED_MS - 1, true), { blend: 0, done: false });
-  assert.deepEqual(establishBlend(ESTABLISH_REDUCED_MS, true), { blend: 1, done: true });
-});
-
-test('interaction rushes the clock without skipping; stalled frames are capped', () => {
+test('the sweep cannot be rushed or skipped, and stalled frames are capped', () => {
   assert.equal(advanceEstablish(0, 0.016), 16);
-  assert.equal(advanceEstablish(100, 0.016, true), 100 + 16 * ESTABLISH_RUSH);
-  assert.equal(advanceEstablish(0, 5), 100, 'a background tab does not jump the shot');
+  assert.equal(advanceEstablish(100, 0.016, true), 116, 'a second argument no longer speeds it up');
+  assert.equal(advanceEstablish(0, 5), 100, 'a background tab or a shader stall does not jump the shot');
   assert.equal(advanceEstablish(Number.NaN, Number.NaN), 0);
+  // A visitor who double-clicks ENTER or scrolls sees the same move as anyone else.
+  let clock = 0;
+  for (let i = 0; i < 300; i += 1) clock = advanceEstablish(clock, 1 / 60, true);
+  assert.ok(Math.abs(clock - 5000) < 1);
 });
 
 test('blending reaches the exact tour pose at 1 and the wide shot at 0', () => {
@@ -86,10 +91,16 @@ test('the wide shot frames the covered car from behind, under the softbox', () =
   assert.ok(box.intensity > 0);
 });
 
-test('the opening and every desktop tour framing fit inside the room without clamping', () => {
+test('the opening, the whole sweep and every desktop tour framing fit inside the room without clamping', () => {
   const halfW = STUDIO.halfWidth;
   const halfD = STUDIO.halfDepth;
   const fits = (yaw, distance) => Math.abs(Math.sin(yaw)) * distance < halfW * 0.9 && Math.abs(Math.cos(yaw)) * distance < halfD * 0.9;
   assert.ok(fits(WIDE_SHOT.yaw, WIDE_SHOT.distance), 'the wide shot stands inside the room');
   for (const stop of TOUR_STOPS) assert.ok(fits(stop.yaw, stop.distance), `${stop.id} fits on desktop`);
+  // The sweep passes the car's side: the camera must never reach the wall, or the lens would pulse.
+  const hero = getTourPose(0);
+  for (let t = 0; t <= ESTABLISH_FLY_MS; t += 40) {
+    const pose = blendPose(hero, establishBlend(t).blend, 1, 36);
+    assert.ok(fits(pose.yaw, pose.distance), `sweep at ${t} ms: yaw ${pose.yaw.toFixed(2)}, distance ${pose.distance.toFixed(2)}`);
+  }
 });
