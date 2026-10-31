@@ -1,0 +1,22 @@
+{
+  "name": "m4-opening-experience",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite --host 0.0.0.0",
+    "build": "vite build",
+    "preview": "vite preview --host 0.0.0.0",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@fontsource/cormorant-garamond": "5.3.0",
+    "@fontsource/manrope": "5.3.0",
+    "react": "19.3.1",
+    "react-dom": "19.3.1",
+    "three": "0.187.0"
+  },
+  "devDependencies": {
+    "vite": "8.3.5"
+  }
+}
