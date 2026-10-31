@@ -61,6 +61,9 @@ export default function App() {
   const soundRequest = useRef(0);
   const timer = useRef(null);
   const loading = phase === 'loading' || phase === 'revealing';
+  const establishing = phase === 'establishing';
+  // The interface stays out of the way until the opening shot has arrived.
+  const settling = loading || establishing;
   const visualAvailable = phase !== 'error';
   const lighting = getLighting(lightPreset, brightness);
 
@@ -126,30 +129,30 @@ export default function App() {
     const wait = introWait(performance.now() - introStartedAt.current, reducedMotion);
     const timeout = window.setTimeout(() => {
       audioRef.current?.ready();
-      setPhase(reducedMotion ? 'ready' : 'revealing');
+      setPhase(reducedMotion ? 'establishing' : 'revealing');
     }, wait);
     return () => clearTimeout(timeout);
   }, [modelReady, phase, reducedMotion]);
 
   useEffect(() => {
     if (phase !== 'revealing') return undefined;
-    const timeout = window.setTimeout(() => setPhase('ready'), reducedMotion ? 0 : INTRO_REVEAL_MS);
+    const timeout = window.setTimeout(() => setPhase('establishing'), reducedMotion ? 0 : INTRO_REVEAL_MS);
     return () => clearTimeout(timeout);
   }, [phase, reducedMotion]);
 
   useEffect(() => {
     const original = document.documentElement.style.overflow;
-    if (loading) {
+    if (settling) {
       document.documentElement.style.overflow = 'hidden';
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
     return () => { document.documentElement.style.overflow = original; };
-  }, [loading]);
+  }, [settling]);
 
   // The same continuous scroll position drives both chapter navigation and the
   // 3D camera. Chapter heights are measured, not assumed to be identical.
   useEffect(() => {
-    if (loading || !tourRef.current) return undefined;
+    if (settling || !tourRef.current) return undefined;
     const chapters = Array.from(tourRef.current.querySelectorAll('[data-tour-chapter]'));
     let frame = 0;
     let previousChapter = -1;
@@ -182,7 +185,7 @@ export default function App() {
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
     };
-  }, [loading]);
+  }, [settling]);
 
   const displayedProgress = introProgress(progress, introElapsed, reducedMotion);
   useEffect(() => {
@@ -192,6 +195,7 @@ export default function App() {
   const handleProgress = useCallback((value) => setProgress((previous) => Math.max(previous, value)), []);
   // The cover comes off once: on a tap on the car, on Start the Engine, or as
   // soon as the visitor scrolls into the first chapter.
+  const handleEstablished = useCallback(() => setPhase((current) => current === 'establishing' ? 'ready' : current), []);
   const unveil = useCallback(() => {
     if (!coveredRef.current) return;
     coveredRef.current = false;
@@ -206,7 +210,7 @@ export default function App() {
   const skipIntro = () => {
     if (!modelReady || phase !== 'loading') return;
     audioRef.current?.ready();
-    setPhase(reducedMotion ? 'ready' : 'revealing');
+    setPhase(reducedMotion ? 'establishing' : 'revealing');
   };
   const goTo = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
@@ -245,7 +249,7 @@ export default function App() {
 
   return (
     <main
-      className={`experience ${covered ? 'is-covered' : ''} ${phase === 'ready' ? 'is-ready' : ''} ${loading ? 'intro-active' : ''} ${phase === 'revealing' ? 'intro-revealing' : ''} ${phase === 'error' ? 'has-error' : ''} ${igniting ? 'is-igniting' : ''}`}
+      className={`experience ${covered ? 'is-covered' : ''} ${establishing ? 'is-establishing' : ''} ${phase === 'ready' ? 'is-ready' : ''} ${loading ? 'intro-active' : ''} ${phase === 'revealing' ? 'intro-revealing' : ''} ${phase === 'error' ? 'has-error' : ''} ${igniting ? 'is-igniting' : ''}`}
       style={{ '--room-rgb': lighting.room, '--room-strength': 0.06 + brightness / 100 * 0.2, '--intensity': `${brightness}%` }}
     >
       <div className="stage-background" aria-hidden="true"><div className="stage-floor" /></div>
@@ -253,7 +257,7 @@ export default function App() {
       {visualAvailable && (
         <SceneBoundary onError={handleError}>
           <Suspense fallback={null}>
-            <CarScene ref={sceneRef} paused={phase !== 'ready'} autoRotate={autoRotate} tourPosition={tourPosition}
+            <CarScene ref={sceneRef} paused={phase !== 'ready' && phase !== 'establishing'} establishing={establishing} onEstablished={handleEstablished} autoRotate={autoRotate} tourPosition={tourPosition}
               lightPreset={lightPreset} brightness={brightness} reducedMotion={reducedMotion}
               covered={covered} onUnveil={unveil}
               onProgress={handleProgress} onReady={handleReady} onError={handleError} />
@@ -263,14 +267,14 @@ export default function App() {
       <div className="stage-vignette" aria-hidden="true" />
 
       <header className="topbar">
-        <div className="brand" aria-label="BMW M4 experience" aria-hidden={loading || undefined}>
+        <div className="brand" aria-label="BMW M4 experience" aria-hidden={settling || undefined}>
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
           <span className="brand-name">BMW <strong>M4</strong></span>
           <span className="brand-divider" aria-hidden="true" />
           <span className="brand-caption">AN EXPERIENCE<br />IN MOTION</span>
         </div>
         <div className="topbar__actions">
-          <button className="light-toggle" type="button" onClick={() => setLightsOpen((open) => !open)} aria-expanded={lightsOpen} aria-controls="lighting-panel" disabled={loading || !visualAvailable}>
+          <button className="light-toggle" type="button" onClick={() => setLightsOpen((open) => !open)} aria-expanded={lightsOpen} aria-controls="lighting-panel" disabled={settling || !visualAvailable}>
             <LightIcon /><span>LIGHTING</span>
           </button>
           <button className="sound-toggle" type="button" onClick={toggleSound} aria-pressed={soundOn} aria-label={soundOn ? 'Turn sound off' : 'Turn sound on'}>
@@ -279,7 +283,7 @@ export default function App() {
         </div>
       </header>
 
-      <section className="lighting-panel" id="lighting-panel" aria-labelledby="lighting-title" hidden={!lightsOpen || loading} onKeyDown={(event) => { if (event.key === 'Escape') setLightsOpen(false); }}>
+      <section className="lighting-panel" id="lighting-panel" aria-labelledby="lighting-title" hidden={!lightsOpen || settling} onKeyDown={(event) => { if (event.key === 'Escape') setLightsOpen(false); }}>
         <div className="lighting-panel__top"><p className="section-kicker">THE STUDIO</p><button type="button" className="close-lights" onClick={() => setLightsOpen(false)} aria-label="Close lighting controls">×</button></div>
         <h2 id="lighting-title">Light the <em>scene.</em></h2>
         <p className="lighting-description">Set the mood, your way.</p>
@@ -294,7 +298,7 @@ export default function App() {
         </div>
       </section>
 
-      <nav className="tour-rail" aria-label="Tour chapters" aria-hidden={loading || undefined} inert={loading ? true : undefined}>
+      <nav className="tour-rail" aria-label="Tour chapters" aria-hidden={settling || undefined} inert={settling ? true : undefined}>
         <span className="tour-rail__count">{String(Math.min(Math.max(activeChapter, 1), 5)).padStart(2, '0')} <i /> 05</span>
         {TOUR_STOPS.slice(1, 6).map((stop, i) => (
           <button type="button" key={stop.id} onClick={() => goTo(stop.id)} aria-label={`Go to ${stop.label.toLowerCase()}`} aria-current={activeChapter === i + 1 ? 'location' : undefined}>
@@ -304,7 +308,7 @@ export default function App() {
         <span className="tour-rail__label">{TOUR_STOPS[activeChapter].label}</span>
       </nav>
 
-      <div className="tour-content" ref={tourRef} aria-hidden={loading || undefined} inert={loading ? true : undefined}>
+      <div className="tour-content" ref={tourRef} aria-hidden={settling || undefined} inert={settling ? true : undefined}>
         <section className="chapter chapter--hero" id="beginning" data-tour-chapter>
           <div className="chapter__inner">
             <div className="hero-copy">
@@ -312,7 +316,7 @@ export default function App() {
               <h1>M4<span className="sr-only"> — an experience in motion</span></h1>
               <p className="hero-copy__line">Made to be <em>felt.</em></p>
               <p className="hero-copy__description">A closer look at the machine<br />behind the feeling.</p>
-              <button className="engine-button" type="button" onClick={ignite} disabled={loading}><span aria-hidden="true">▶</span><span>{started ? 'REPLAY ENGINE' : 'START THE ENGINE'}</span><span aria-hidden="true">↗</span></button>
+              <button className="engine-button" type="button" onClick={ignite} disabled={settling}><span aria-hidden="true">▶</span><span>{started ? 'REPLAY ENGINE' : 'START THE ENGINE'}</span><span aria-hidden="true">↗</span></button>
               <p className="audio-hint">Sound on for the full experience.</p>
             </div>
             <div className="hero-bottom">

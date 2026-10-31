@@ -75,9 +75,9 @@ function makeWallTexture() {
   canvas.height = 512;
   const context = canvas.getContext('2d');
   const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
-  gradient.addColorStop(0, 'rgb(64, 66, 72)');
-  gradient.addColorStop(0.12, 'rgb(34, 35, 39)');
-  gradient.addColorStop(0.38, 'rgb(13, 13, 15)');
+  gradient.addColorStop(0, 'rgb(86, 88, 96)');
+  gradient.addColorStop(0.1, 'rgb(44, 45, 50)');
+  gradient.addColorStop(0.36, 'rgb(15, 15, 17)');
   gradient.addColorStop(1, 'rgb(7, 7, 8)');
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);

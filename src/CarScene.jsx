@@ -8,6 +8,7 @@ import { RESUME_AFTER_DRAG_MS, advanceRotation, getLighting, performanceProfile,
 import { TOUR_STOPS, getTourPose } from './tour.js';
 import { HEM_ALPHA_TEST, createCarCover, disposeCarCover } from './CarCover.js';
 import { createStudio } from './Studio.js';
+import { WIDE_SHOT, advanceEstablish, blendPose, establishBlend } from './establish.js';
 import { revealState } from './shroud.js';
 
 const MODELS = {
@@ -33,23 +34,25 @@ function makeShadowTexture() {
 export const CarScene = forwardRef(function CarScene({
   onProgress, onReady, onError, paused = false, autoRotate = true,
   lightPreset = 'studio', brightness = 75, reducedMotion = false, tourPosition = 0,
-  covered = true, onUnveil,
+  covered = true, onUnveil, establishing = false, onEstablished,
 }, ref) {
   const containerRef = useRef(null);
   const ignitionAt = useRef(0);
   const unveilRef = useRef(onUnveil);
-  const settingsRef = useRef({ paused, autoRotate, lightPreset, brightness, reducedMotion, covered });
+  const establishedRef = useRef(onEstablished);
+  const settingsRef = useRef({ paused, autoRotate, lightPreset, brightness, reducedMotion, covered, establishing });
   const tourRef = useRef(tourPosition);
   const updateSettingsRef = useRef(null);
   const updateTourRef = useRef(null);
   const invalidateRef = useRef(null);
 
   useEffect(() => { unveilRef.current = onUnveil; }, [onUnveil]);
+  useEffect(() => { establishedRef.current = onEstablished; }, [onEstablished]);
 
   useEffect(() => {
-    settingsRef.current = { paused, autoRotate, lightPreset, brightness, reducedMotion, covered };
+    settingsRef.current = { paused, autoRotate, lightPreset, brightness, reducedMotion, covered, establishing };
     updateSettingsRef.current?.();
-  }, [paused, autoRotate, lightPreset, brightness, reducedMotion, covered]);
+  }, [paused, autoRotate, lightPreset, brightness, reducedMotion, covered, establishing]);
 
   useEffect(() => {
     const previous = tourRef.current;
@@ -79,6 +82,10 @@ export const CarScene = forwardRef(function CarScene({
     let cover = null;
     let revealAt = 0;
     let studio = null;
+    // The opening shot: wide and high until the clock has run, then the tour.
+    let established = false;
+    let establishClock = 0;
+    let rushed = false;
     let pointerId = null;
     let lastPointerX = 0;
     let pointerStartX = 0;
@@ -190,7 +197,6 @@ export const CarScene = forwardRef(function CarScene({
       renderer.setSize(viewportWidth, viewportHeight, false);
       studio?.resize(viewportWidth * profile().pixelRatio, viewportHeight * profile().pixelRatio);
       camera.aspect = aspect;
-      camera.fov = aspect < 0.8 ? 39 : 36;
       camera.near = maximum / 500;
       camera.far = maximum * 50;
       camera.updateProjectionMatrix();
@@ -222,15 +228,29 @@ export const CarScene = forwardRef(function CarScene({
     function draw(now) {
       const pulse = ignitionPulse(now);
       animateCover(now);
-      const pose = getTourPose(tourRef.current, settingsRef.current.reducedMotion);
+      const baseFov = aspect < 0.8 ? 39 : 36;
+      let pose = getTourPose(tourRef.current, settingsRef.current.reducedMotion);
+      let fov = baseFov;
+      let opening = null;
+      if (!established) {
+        opening = establishBlend(establishClock, settingsRef.current.reducedMotion);
+        pose = blendPose(pose, opening.blend, opening.drift, baseFov);
+        fov = pose.fov;
+      }
+      if (camera.fov !== fov) {
+        camera.fov = fov;
+        camera.updateProjectionMatrix();
+      }
       const mobileFit = aspect < 0.95 ? Math.max(1, pose.mobileFrame / aspect) : 1;
-      const distance = maximum * pose.distance * mobileFit * (1 - pulse * 0.02);
+      const distance = Math.min(maximum * pose.distance * mobileFit, maximum * WIDE_SHOT.maxDistance) * (1 - pulse * 0.02);
       lookTarget.set(...pose.target).multiplyScalar(maximum);
       camera.position.set(
         lookTarget.x + Math.sin(pose.yaw) * distance,
         lookTarget.y + pose.tilt * distance,
         lookTarget.z + Math.cos(pose.yaw) * distance,
       );
+      // Stay under the ceiling on tall framings.
+      if (studio) camera.position.y = Math.min(camera.position.y, studio.bounds.ceilingY - maximum * 0.06);
       // Keep copy and car on opposite sides of the frame; on a phone the car
       // sits slightly higher so the chapter text remains readable below it.
       const shiftX = -(aspect < 0.95 ? pose.mobileShift : pose.shift) * viewportWidth;
@@ -248,6 +268,7 @@ export const CarScene = forwardRef(function CarScene({
       container.dataset.tour = tourRef.current.toFixed(3);
       container.dataset.cameraYaw = pose.yaw.toFixed(3);
       container.dataset.cover = cover ? (revealAt ? 'revealing' : 'on') : 'off';
+      container.dataset.opening = opening ? opening.blend.toFixed(3) : 'done';
       lastDraw = now;
       needsDraw = false;
     }
@@ -266,6 +287,16 @@ export const CarScene = forwardRef(function CarScene({
       lastTick = now;
       const settings = settingsRef.current;
       const guided = tourRef.current > 0.12;
+      if (!established && settings.establishing) {
+        establishClock = advanceEstablish(establishClock, elapsed, rushed);
+        if (establishBlend(establishClock, settings.reducedMotion).done) {
+          established = true;
+          // Let the arrival settle before the turntable starts to move.
+          resumeAt = now + 2500;
+          establishedRef.current?.();
+        }
+        needsDraw = true;
+      }
       if (pointerId === null && now >= resumeAt) {
         if (!guided && settings.autoRotate) {
           turntable.rotation.y = advanceRotation(turntable.rotation.y, elapsed) % TWO_PI;
@@ -281,7 +312,8 @@ export const CarScene = forwardRef(function CarScene({
       const ignitionIsActive = !settings.reducedMotion && ignitionAt.current && now - ignitionAt.current < 1600;
       const returningToShot = guided && !settings.reducedMotion && pointerId === null && Math.abs(turntable.rotation.y) > 0.001;
       const unveiling = Boolean(cover && revealAt);
-      if (needsDraw || (!guided && settings.autoRotate) || returningToShot || ignitionIsActive || unveiling) schedule();
+      const opening = !established && settings.establishing;
+      if (needsDraw || opening || (!guided && settings.autoRotate) || returningToShot || ignitionIsActive || unveiling) schedule();
     }
     function updateSettings() {
       applyLighting();
@@ -333,7 +365,7 @@ export const CarScene = forwardRef(function CarScene({
       if (!document.hidden) invalidate();
     };
     const pointerDown = (event) => {
-      if (settingsRef.current.paused || !model || (event.pointerType === 'mouse' && event.button !== 0)) return;
+      if (settingsRef.current.paused || !model || !established || (event.pointerType === 'mouse' && event.button !== 0)) return;
       if (pointerId !== null) return;
       pointerId = event.pointerId;
       lastPointerX = event.clientX;
@@ -361,6 +393,7 @@ export const CarScene = forwardRef(function CarScene({
       lastTick = 0;
       invalidate();
     };
+    const rush = () => { if (!established && settingsRef.current.establishing) rushed = true; };
     const keyDown = (event) => {
       if (settingsRef.current.paused || !model) return;
       if (event.key === 'ArrowLeft' || event.key === 'ArrowRight') {
@@ -390,6 +423,9 @@ export const CarScene = forwardRef(function CarScene({
     container.addEventListener('pointercancel', pointerEnd);
     container.addEventListener('lostpointercapture', pointerEnd);
     container.addEventListener('keydown', keyDown);
+    window.addEventListener('pointerdown', rush, { passive: true });
+    window.addEventListener('wheel', rush, { passive: true });
+    window.addEventListener('keydown', rush);
 
     // Keep the full model on hardware-accelerated desktops; a carefully
     // simplified copy makes phones and software-rendered Chrome usable too.
@@ -476,6 +512,9 @@ export const CarScene = forwardRef(function CarScene({
       container.removeEventListener('pointercancel', pointerEnd);
       container.removeEventListener('lostpointercapture', pointerEnd);
       container.removeEventListener('keydown', keyDown);
+      window.removeEventListener('pointerdown', rush);
+      window.removeEventListener('wheel', rush);
+      window.removeEventListener('keydown', rush);
       renderer.domElement.removeEventListener('webglcontextlost', contextLost);
       studio?.dispose();
       studio = null;
