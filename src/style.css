@@ -122,6 +122,11 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .45; }
 .rotation-controls { display: flex; align-items: center; gap: 22px; white-space: nowrap; }
 .rotation-controls p, .auto-toggle { margin: 0; color: #d0cac4; font-size: 9px; font-weight: 600; letter-spacing: .13em; }
 .rotation-arrow { margin-right: 8px; color: #f5f1eb; font-size: 14px; letter-spacing: 0; }
+.unveil-cue { display: inline-flex; align-items: center; gap: 10px; margin-right: 22px; padding: 10px 0; border: 0; background: transparent; color: #f5f1eb; cursor: pointer; font: inherit; font-size: 9px; font-weight: 600; letter-spacing: .13em; }
+.unveil-cue::before { content: ''; width: 7px; height: 7px; border-radius: 50%; background: #f5f1eb; box-shadow: 0 0 0 0 rgba(245,241,235,.55); animation: unveil-pulse 2.2s ease-out infinite; }
+@keyframes unveil-pulse { 70% { box-shadow: 0 0 0 9px rgba(245,241,235,0); } 100% { box-shadow: 0 0 0 0 rgba(245,241,235,0); } }
+.is-covered .car-scene { cursor: pointer; }
+.is-covered .car-scene.is-dragging { cursor: grabbing; }
 .auto-toggle { display: inline-flex; align-items: center; gap: 8px; padding: 10px 0; border: 0; background: transparent; cursor: pointer; }
 .auto-toggle b { color: #f4f0eb; font-weight: 600; }
 .auto-indicator { width: 6px; height: 6px; border: 1px solid #ccc5be; border-radius: 50%; }
@@ -215,6 +220,7 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .45; }
   .rotation-controls { gap: 9px; }
   .rotation-controls p, .auto-toggle { font-size: 8px; letter-spacing: .07em; }
   .rotation-arrow { margin-right: 3px; font-size: 12px; }
+  .unveil-cue { margin-right: 9px; font-size: 8px; letter-spacing: .07em; }
   .auto-toggle { gap: 5px; }
   .chapter__copy, .chapter--right .chapter__copy { width: 100%; max-width: 410px; margin: 0; }
   .chapter__copy::before, .chapter--right .chapter__copy::before { top: -17vh; bottom: -15vh; left: -8vw; right: -8vw; background: linear-gradient(0deg, rgba(8,8,9,.96), rgba(8,8,9,.75) 55%, transparent); }

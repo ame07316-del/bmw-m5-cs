@@ -6,6 +6,8 @@ import { RoomEnvironment } from 'three/addons/environments/RoomEnvironment.js';
 import { transferPercent } from './progress.js';
 import { RESUME_AFTER_DRAG_MS, advanceRotation, getLighting, performanceProfile, rotationForDrag } from './studio.js';
 import { TOUR_STOPS, getTourPose } from './tour.js';
+import { HEM_ALPHA_TEST, createCarCover, disposeCarCover } from './CarCover.js';
+import { revealState } from './shroud.js';
 
 const MODELS = {
   full: { url: `${import.meta.env.BASE_URL}models/m4.glb`, bytes: 6_680_780 },
@@ -56,19 +58,23 @@ function makeSoftboxTexture() {
 export const CarScene = forwardRef(function CarScene({
   onProgress, onReady, onError, paused = false, autoRotate = true,
   lightPreset = 'studio', brightness = 75, reducedMotion = false, tourPosition = 0,
+  covered = true, onUnveil,
 }, ref) {
   const containerRef = useRef(null);
   const ignitionAt = useRef(0);
-  const settingsRef = useRef({ paused, autoRotate, lightPreset, brightness, reducedMotion });
+  const unveilRef = useRef(onUnveil);
+  const settingsRef = useRef({ paused, autoRotate, lightPreset, brightness, reducedMotion, covered });
   const tourRef = useRef(tourPosition);
   const updateSettingsRef = useRef(null);
   const updateTourRef = useRef(null);
   const invalidateRef = useRef(null);
 
+  useEffect(() => { unveilRef.current = onUnveil; }, [onUnveil]);
+
   useEffect(() => {
-    settingsRef.current = { paused, autoRotate, lightPreset, brightness, reducedMotion };
+    settingsRef.current = { paused, autoRotate, lightPreset, brightness, reducedMotion, covered };
     updateSettingsRef.current?.();
-  }, [paused, autoRotate, lightPreset, brightness, reducedMotion]);
+  }, [paused, autoRotate, lightPreset, brightness, reducedMotion, covered]);
 
   useEffect(() => {
     const previous = tourRef.current;
@@ -95,8 +101,13 @@ export const CarScene = forwardRef(function CarScene({
     let model;
     let environment;
     let renderer;
+    let cover = null;
+    let revealAt = 0;
     let pointerId = null;
     let lastPointerX = 0;
+    let pointerStartX = 0;
+    let pointerStartY = 0;
+    let pointerTravel = 0;
     let resumeAt = 0;
     let hasEnteredStudio = false;
     const reportError = (error) => {
@@ -210,8 +221,27 @@ export const CarScene = forwardRef(function CarScene({
       const elapsed = now - ignitionAt.current;
       return elapsed >= 0 && elapsed < 1600 ? Math.sin((elapsed / 1600) * Math.PI) : 0;
     }
+    function animateCover(now) {
+      if (!cover || !revealAt) return false;
+      const state = revealState(now - revealAt, settingsRef.current.reducedMotion);
+      const floorY = cover.userData.floorY;
+      cover.position.z = -state.travel * cover.userData.length * 1.15;
+      cover.scale.y = state.flatten;
+      cover.position.y = floorY * (1 - state.flatten) + state.lift * cover.userData.height;
+      cover.material.opacity = state.opacity;
+      cover.material.transparent = state.opacity < 1;
+      // The hem cut-out scales with the fade so the cloth dissolves instead of popping.
+      cover.material.alphaTest = HEM_ALPHA_TEST * state.opacity;
+      if (state.done) {
+        disposeCarCover(cover);
+        cover = null;
+        return false;
+      }
+      return true;
+    }
     function draw(now) {
       const pulse = ignitionPulse(now);
+      animateCover(now);
       const pose = getTourPose(tourRef.current, settingsRef.current.reducedMotion);
       const mobileFit = aspect < 0.95 ? Math.max(1, pose.mobileFrame / aspect) : 1;
       const distance = maximum * pose.distance * mobileFit * (1 - pulse * 0.02);
@@ -237,6 +267,7 @@ export const CarScene = forwardRef(function CarScene({
       container.dataset.rotation = turntable.rotation.y.toFixed(4);
       container.dataset.tour = tourRef.current.toFixed(3);
       container.dataset.cameraYaw = pose.yaw.toFixed(3);
+      container.dataset.cover = cover ? (revealAt ? 'revealing' : 'on') : 'off';
       lastDraw = now;
       needsDraw = false;
     }
@@ -269,7 +300,8 @@ export const CarScene = forwardRef(function CarScene({
       if (now - lastDraw >= 1000 / profile().fps) draw(now);
       const ignitionIsActive = !settings.reducedMotion && ignitionAt.current && now - ignitionAt.current < 1600;
       const returningToShot = guided && !settings.reducedMotion && pointerId === null && Math.abs(turntable.rotation.y) > 0.001;
-      if (needsDraw || (!guided && settings.autoRotate) || returningToShot || ignitionIsActive) schedule();
+      const unveiling = Boolean(cover && revealAt);
+      if (needsDraw || (!guided && settings.autoRotate) || returningToShot || ignitionIsActive || unveiling) schedule();
     }
     function updateSettings() {
       applyLighting();
@@ -277,6 +309,14 @@ export const CarScene = forwardRef(function CarScene({
       frame = 0;
       lastTick = 0;
       if (!model) return;
+      if (!settingsRef.current.covered && cover && !revealAt) {
+        // The cover is pulled off once, towards the rear, and never returns.
+        revealAt = performance.now();
+        if (settingsRef.current.paused) {
+          disposeCarCover(cover);
+          cover = null;
+        }
+      }
       if (settingsRef.current.paused) draw(performance.now());
       else {
         if (!hasEnteredStudio) {
@@ -317,6 +357,9 @@ export const CarScene = forwardRef(function CarScene({
       if (pointerId !== null) return;
       pointerId = event.pointerId;
       lastPointerX = event.clientX;
+      pointerStartX = event.clientX;
+      pointerStartY = event.clientY;
+      pointerTravel = 0;
       container.classList.add('is-dragging');
       try { container.setPointerCapture(pointerId); } catch { /* Pointer capture is optional. */ }
     };
@@ -324,6 +367,7 @@ export const CarScene = forwardRef(function CarScene({
       if (event.pointerId !== pointerId || !model) return;
       const delta = event.clientX - lastPointerX;
       lastPointerX = event.clientX;
+      pointerTravel = Math.max(pointerTravel, Math.hypot(event.clientX - pointerStartX, event.clientY - pointerStartY));
       turntable.rotation.y = (turntable.rotation.y + rotationForDrag(delta, container.clientWidth)) % TWO_PI;
       invalidate();
     };
@@ -331,6 +375,8 @@ export const CarScene = forwardRef(function CarScene({
       if (event.pointerId !== pointerId) return;
       pointerId = null;
       container.classList.remove('is-dragging');
+      // A tap on the covered car (not a drag) lifts the cover.
+      if (event.type === 'pointerup' && pointerTravel < 8 && cover && !revealAt && settingsRef.current.covered) unveilRef.current?.();
       resumeAt = performance.now() + RESUME_AFTER_DRAG_MS;
       lastTick = 0;
       invalidate();
@@ -343,6 +389,10 @@ export const CarScene = forwardRef(function CarScene({
       } else if (event.key === 'Home') {
         event.preventDefault();
         turntable.rotation.y = 0;
+      } else if ((event.key === 'Enter' || event.key === ' ') && cover && !revealAt && settingsRef.current.covered) {
+        event.preventDefault();
+        unveilRef.current?.();
+        return;
       } else return;
       resumeAt = performance.now() + RESUME_AFTER_DRAG_MS;
       lastTick = 0;
@@ -379,8 +429,21 @@ export const CarScene = forwardRef(function CarScene({
           const center = bounds.getCenter(new THREE.Vector3());
           maximum = Math.max(size.x, size.y, size.z);
           model.position.sub(center);
+          model.updateMatrixWorld(true);
 
           const floorY = bounds.min.y - center.y - 0.025;
+          // The car arrives under a studio cover shaped from its own silhouette.
+          // If the cover cannot be built the tour still works; it is only a drape.
+          if (settingsRef.current.covered) {
+            try {
+              const centred = new THREE.Box3().setFromObject(model);
+              cover = createCarCover(renderer, model, centred, maximum, floorY);
+              turntable.add(cover);
+            } catch (coverError) {
+              console.warn('The car cover could not be built:', coverError);
+              cover = null;
+            }
+          }
           // A real ground and a subtle inlaid ring stay fixed as the camera
           // travels, making this a studio to move through, not a flat backdrop.
           const ground = new THREE.Mesh(
@@ -477,7 +540,7 @@ export const CarScene = forwardRef(function CarScene({
       role="region"
       tabIndex={paused ? -1 : 0}
       aria-hidden={paused || undefined}
-      aria-label="Interactive 3D view of the BMW M4"
+      aria-label={covered ? 'Interactive 3D view of the covered BMW M4. Press Enter to unveil it.' : 'Interactive 3D view of the BMW M4'}
       aria-describedby="rotation-instructions"
     />
   );

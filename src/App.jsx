@@ -50,6 +50,8 @@ export default function App() {
   const [started, setStarted] = useState(false);
   const [igniting, setIgniting] = useState(false);
   const [soundNotice, setSoundNotice] = useState('');
+  const [covered, setCovered] = useState(true);
+  const coveredRef = useRef(true);
   const introStartedAt = useRef(performance.now());
   const audioRef = useRef(null);
   const sceneRef = useRef(null);
@@ -158,6 +160,7 @@ export default function App() {
       const position = progressFromOffsets(window.scrollY, offsets);
       const index = activeTourIndex(position);
       setTourPosition((current) => Math.abs(current - position) < 0.001 ? current : position);
+      if (position > 0.12 && coveredRef.current) unveil();
       if (index !== previousChapter) {
         if (previousChapter >= 0 && index > 0 && index < TOUR_STOPS.length - 1) {
           audioRef.current?.section(index === 4 ? 'exhaust' : TOUR_STOPS[index].id);
@@ -187,6 +190,13 @@ export default function App() {
   }, [displayedProgress, phase]);
 
   const handleProgress = useCallback((value) => setProgress((previous) => Math.max(previous, value)), []);
+  // The cover comes off once: on a tap on the car, on Start the Engine, or as
+  // soon as the visitor scrolls into the first chapter.
+  const unveil = useCallback(() => {
+    if (!coveredRef.current) return;
+    coveredRef.current = false;
+    setCovered(false);
+  }, []);
   const handleReady = useCallback(() => { setProgress(100); setModelReady(true); }, []);
   const handleError = useCallback((error) => {
     console.error('The M4 visual could not be loaded:', error);
@@ -216,6 +226,7 @@ export default function App() {
 
   async function ignite() {
     interacted.current = true;
+    unveil();
     const audio = audioRef.current;
     const playback = audio?.ignite();
     const request = playback ? ++soundRequest.current : soundRequest.current;
@@ -234,7 +245,7 @@ export default function App() {
 
   return (
     <main
-      className={`experience ${phase === 'ready' ? 'is-ready' : ''} ${loading ? 'intro-active' : ''} ${phase === 'revealing' ? 'intro-revealing' : ''} ${phase === 'error' ? 'has-error' : ''} ${igniting ? 'is-igniting' : ''}`}
+      className={`experience ${covered ? 'is-covered' : ''} ${phase === 'ready' ? 'is-ready' : ''} ${loading ? 'intro-active' : ''} ${phase === 'revealing' ? 'intro-revealing' : ''} ${phase === 'error' ? 'has-error' : ''} ${igniting ? 'is-igniting' : ''}`}
       style={{ '--room-rgb': lighting.room, '--room-strength': 0.06 + brightness / 100 * 0.2, '--intensity': `${brightness}%` }}
     >
       <div className="stage-background" aria-hidden="true"><div className="stage-floor" /></div>
@@ -244,6 +255,7 @@ export default function App() {
           <Suspense fallback={null}>
             <CarScene ref={sceneRef} paused={phase !== 'ready'} autoRotate={autoRotate} tourPosition={tourPosition}
               lightPreset={lightPreset} brightness={brightness} reducedMotion={reducedMotion}
+              covered={covered} onUnveil={unveil}
               onProgress={handleProgress} onReady={handleReady} onError={handleError} />
           </Suspense>
         </SceneBoundary>
@@ -306,7 +318,7 @@ export default function App() {
             <div className="hero-bottom">
               <button className="scroll-cue" type="button" onClick={() => goTo('the-face')}><span>SCROLL TO EXPLORE</span><span className="scroll-cue__line" aria-hidden="true" /><span aria-hidden="true">↓</span></button>
               <div className="rotation-controls">
-                <p id="rotation-instructions">{visualAvailable ? <><span className="rotation-arrow" aria-hidden="true">⟵ &nbsp;⟶</span> DRAG TO ROTATE <span className="sr-only">or focus the 3D view and use the left and right arrow keys. Home resets the angle.</span></> : 'STATIC PREVIEW'}</p>
+                <p id="rotation-instructions">{visualAvailable ? <>{covered && <button type="button" className="unveil-cue" onClick={unveil}>TAP THE CAR TO UNVEIL</button>}<span className="rotation-arrow" aria-hidden="true">⟵ &nbsp;⟶</span> DRAG TO ROTATE <span className="sr-only">or focus the 3D view and use the left and right arrow keys. Home resets the angle.{covered ? ' Enter lifts the cover.' : ''}</span></> : 'STATIC PREVIEW'}</p>
                 <button type="button" className="auto-toggle" onClick={() => setAutoRotate((value) => !value)} aria-pressed={autoRotate} disabled={!visualAvailable}><span className="auto-indicator" aria-hidden="true" /> AUTO ROTATE <b>{autoRotate ? 'ON' : 'OFF'}</b></button>
               </div>
             </div>
