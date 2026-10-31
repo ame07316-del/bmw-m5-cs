@@ -5,17 +5,17 @@ export const LIGHT_PRESETS = [
   {
     id: 'studio', label: 'Studio', room: '180, 185, 194',
     keyColor: 0xfff7ee, fillColor: 0xe6edff, rimColor: 0xfff5ef,
-    key: 3.1, fill: 1.25, rim: 0.85, hemisphere: 0.95, environment: 0.75,
+    key: 3.1, fill: 1.25, rim: 0.85, hemisphere: 0.95, environment: 0.75, softbox: 3.5,
   },
   {
     id: 'dramatic', label: 'Dramatic', room: '147, 156, 180',
     keyColor: 0xfff2e9, fillColor: 0xb8c8ee, rimColor: 0xff6655,
-    key: 2.9, fill: 0.48, rim: 1.55, hemisphere: 0.50, environment: 0.48,
+    key: 2.9, fill: 0.48, rim: 1.55, hemisphere: 0.50, environment: 0.48, softbox: 4.5,
   },
   {
     id: 'warm', label: 'Warm', room: '194, 151, 117',
     keyColor: 0xffd7b3, fillColor: 0xffe3cf, rimColor: 0xffa17c,
-    key: 3.2, fill: 0.95, rim: 0.85, hemisphere: 0.85, environment: 0.65,
+    key: 3.2, fill: 0.95, rim: 0.85, hemisphere: 0.85, environment: 0.65, softbox: 3,
   },
 ];
 
@@ -53,6 +53,7 @@ export function getLighting(presetId, brightness) {
     rim: preset.rim * scale,
     hemisphere: preset.hemisphere * scale,
     environment: preset.environment * scale,
+    softbox: preset.softbox * scale,
     exposure: 0.76 + (level / 100) * 0.44,
   };
 }

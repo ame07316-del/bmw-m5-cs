@@ -1,7 +1,7 @@
 import { Component, Suspense, lazy, useCallback, useEffect, useRef, useState } from 'react';
 import { ExperienceAudio } from './audio.js';
 import { Preloader } from './Preloader.jsx';
-import { INTRO_REVEAL_MS, introProgress, introWait } from './intro.js';
+import { introProgress, introWait } from './intro.js';
 import { DEFAULT_BRIGHTNESS, DEFAULT_LIGHT_PRESET, LIGHT_PRESETS, clampBrightness, getLighting } from './studio.js';
 import { TOUR_STOPS, activeTourIndex, progressFromOffsets } from './tour.js';
 
@@ -50,6 +50,9 @@ export default function App() {
   const [started, setStarted] = useState(false);
   const [igniting, setIgniting] = useState(false);
   const [soundNotice, setSoundNotice] = useState('');
+  const [covered, setCovered] = useState(true);
+  const [sceneLive, setSceneLive] = useState(false);
+  const coveredRef = useRef(true);
   const introStartedAt = useRef(performance.now());
   const audioRef = useRef(null);
   const sceneRef = useRef(null);
@@ -58,7 +61,13 @@ export default function App() {
   const autoplayAttempted = useRef(false);
   const soundRequest = useRef(0);
   const timer = useRef(null);
-  const loading = phase === 'loading' || phase === 'revealing';
+  // loading: the counter over the live studio · invite: the ENTER gate over the
+  // held wide shot · establishing: the sweep to the first view · ready: the tour.
+  const loading = phase === 'loading';
+  const inviting = phase === 'invite';
+  const establishing = phase === 'establishing';
+  // The interface stays out of the way until the opening shot has arrived.
+  const settling = loading || inviting || establishing;
   const visualAvailable = phase !== 'error';
   const lighting = getLighting(lightPreset, brightness);
 
@@ -122,32 +131,23 @@ export default function App() {
   useEffect(() => {
     if (!modelReady || phase !== 'loading') return undefined;
     const wait = introWait(performance.now() - introStartedAt.current, reducedMotion);
-    const timeout = window.setTimeout(() => {
-      audioRef.current?.ready();
-      setPhase(reducedMotion ? 'ready' : 'revealing');
-    }, wait);
+    const timeout = window.setTimeout(() => setPhase('invite'), wait);
     return () => clearTimeout(timeout);
   }, [modelReady, phase, reducedMotion]);
 
   useEffect(() => {
-    if (phase !== 'revealing') return undefined;
-    const timeout = window.setTimeout(() => setPhase('ready'), reducedMotion ? 0 : INTRO_REVEAL_MS);
-    return () => clearTimeout(timeout);
-  }, [phase, reducedMotion]);
-
-  useEffect(() => {
     const original = document.documentElement.style.overflow;
-    if (loading) {
+    if (settling) {
       document.documentElement.style.overflow = 'hidden';
       window.scrollTo({ top: 0, behavior: 'instant' });
     }
     return () => { document.documentElement.style.overflow = original; };
-  }, [loading]);
+  }, [settling]);
 
   // The same continuous scroll position drives both chapter navigation and the
   // 3D camera. Chapter heights are measured, not assumed to be identical.
   useEffect(() => {
-    if (loading || !tourRef.current) return undefined;
+    if (settling || !tourRef.current) return undefined;
     const chapters = Array.from(tourRef.current.querySelectorAll('[data-tour-chapter]'));
     let frame = 0;
     let previousChapter = -1;
@@ -158,6 +158,7 @@ export default function App() {
       const position = progressFromOffsets(window.scrollY, offsets);
       const index = activeTourIndex(position);
       setTourPosition((current) => Math.abs(current - position) < 0.001 ? current : position);
+      if (position > 0.12 && coveredRef.current) unveil();
       if (index !== previousChapter) {
         if (previousChapter >= 0 && index > 0 && index < TOUR_STOPS.length - 1) {
           audioRef.current?.section(index === 4 ? 'exhaust' : TOUR_STOPS[index].id);
@@ -179,7 +180,7 @@ export default function App() {
       window.removeEventListener('scroll', onScroll);
       window.removeEventListener('resize', onScroll);
     };
-  }, [loading]);
+  }, [settling]);
 
   const displayedProgress = introProgress(progress, introElapsed, reducedMotion);
   useEffect(() => {
@@ -187,7 +188,37 @@ export default function App() {
   }, [displayedProgress, phase]);
 
   const handleProgress = useCallback((value) => setProgress((previous) => Math.max(previous, value)), []);
+  // The cover comes off once: on a tap on the car, on Start the Engine, or as
+  // soon as the visitor scrolls into the first chapter.
+  const handleEstablished = useCallback(() => setPhase((current) => current === 'establishing' ? 'ready' : current), []);
+  const unveil = useCallback(() => {
+    if (!coveredRef.current) return;
+    coveredRef.current = false;
+    setCovered(false);
+  }, []);
   const handleReady = useCallback(() => { setProgress(100); setModelReady(true); }, []);
+  const handleFirstFrame = useCallback(() => setSceneLive(true), []);
+  // ENTER is the visitor's gesture: it starts the sweep and lets the sound through.
+  const enter = () => {
+    if (phase !== 'invite') return;
+    setPhase('establishing');
+    const audio = audioRef.current;
+    if (!audio) return;
+    audio.ready();
+    if (interacted.current || autoplayAttempted.current) return;
+    autoplayAttempted.current = true;
+    const request = ++soundRequest.current;
+    audio.tryAutoplay().then((enabled) => {
+      if (!interacted.current && audioRef.current === audio && request === soundRequest.current) setSoundOn(enabled);
+    });
+  };
+  // A system reduced-motion setting is a default here, not a lock: the visitor
+  // can ask for the full cinematic from the gate.
+  const enterWithMotion = () => {
+    setReducedMotion(false);
+    setAutoRotate(true);
+    enter();
+  };
   const handleError = useCallback((error) => {
     console.error('The M4 visual could not be loaded:', error);
     setPhase('error');
@@ -195,8 +226,7 @@ export default function App() {
   const retry = () => window.location.reload();
   const skipIntro = () => {
     if (!modelReady || phase !== 'loading') return;
-    audioRef.current?.ready();
-    setPhase(reducedMotion ? 'ready' : 'revealing');
+    setPhase('invite');
   };
   const goTo = (id) => {
     document.getElementById(id)?.scrollIntoView({ behavior: reducedMotion ? 'auto' : 'smooth', block: 'start' });
@@ -216,6 +246,7 @@ export default function App() {
 
   async function ignite() {
     interacted.current = true;
+    unveil();
     const audio = audioRef.current;
     const playback = audio?.ignite();
     const request = playback ? ++soundRequest.current : soundRequest.current;
@@ -234,7 +265,7 @@ export default function App() {
 
   return (
     <main
-      className={`experience ${phase === 'ready' ? 'is-ready' : ''} ${loading ? 'intro-active' : ''} ${phase === 'revealing' ? 'intro-revealing' : ''} ${phase === 'error' ? 'has-error' : ''} ${igniting ? 'is-igniting' : ''}`}
+      className={`experience ${covered ? 'is-covered' : ''} ${settling ? 'is-settling' : ''} ${inviting ? 'is-inviting' : ''} ${establishing ? 'is-establishing' : ''} ${phase === 'ready' ? 'is-ready' : ''} ${loading ? 'intro-active' : ''} ${sceneLive ? 'scene-live' : ''} ${reducedMotion ? 'is-reduced' : ''} ${phase === 'error' ? 'has-error' : ''} ${igniting ? 'is-igniting' : ''}`}
       style={{ '--room-rgb': lighting.room, '--room-strength': 0.06 + brightness / 100 * 0.2, '--intensity': `${brightness}%` }}
     >
       <div className="stage-background" aria-hidden="true"><div className="stage-floor" /></div>
@@ -242,23 +273,24 @@ export default function App() {
       {visualAvailable && (
         <SceneBoundary onError={handleError}>
           <Suspense fallback={null}>
-            <CarScene ref={sceneRef} paused={phase !== 'ready'} autoRotate={autoRotate} tourPosition={tourPosition}
+            <CarScene ref={sceneRef} paused={false} interactive={phase === 'ready'} establishing={establishing} onEstablished={handleEstablished} autoRotate={autoRotate} tourPosition={tourPosition}
               lightPreset={lightPreset} brightness={brightness} reducedMotion={reducedMotion}
-              onProgress={handleProgress} onReady={handleReady} onError={handleError} />
+              covered={covered} onUnveil={unveil}
+              onProgress={handleProgress} onReady={handleReady} onFirstFrame={handleFirstFrame} onError={handleError} />
           </Suspense>
         </SceneBoundary>
       )}
       <div className="stage-vignette" aria-hidden="true" />
 
       <header className="topbar">
-        <div className="brand" aria-label="BMW M4 experience" aria-hidden={loading || undefined}>
+        <div className="brand" aria-label="BMW M4 experience" aria-hidden={settling || undefined}>
           <span className="brand-mark" aria-hidden="true"><i /><i /><i /></span>
           <span className="brand-name">BMW <strong>M4</strong></span>
           <span className="brand-divider" aria-hidden="true" />
           <span className="brand-caption">AN EXPERIENCE<br />IN MOTION</span>
         </div>
         <div className="topbar__actions">
-          <button className="light-toggle" type="button" onClick={() => setLightsOpen((open) => !open)} aria-expanded={lightsOpen} aria-controls="lighting-panel" disabled={loading || !visualAvailable}>
+          <button className="light-toggle" type="button" onClick={() => setLightsOpen((open) => !open)} aria-expanded={lightsOpen} aria-controls="lighting-panel" disabled={settling || !visualAvailable}>
             <LightIcon /><span>LIGHTING</span>
           </button>
           <button className="sound-toggle" type="button" onClick={toggleSound} aria-pressed={soundOn} aria-label={soundOn ? 'Turn sound off' : 'Turn sound on'}>
@@ -267,7 +299,7 @@ export default function App() {
         </div>
       </header>
 
-      <section className="lighting-panel" id="lighting-panel" aria-labelledby="lighting-title" hidden={!lightsOpen || loading} onKeyDown={(event) => { if (event.key === 'Escape') setLightsOpen(false); }}>
+      <section className="lighting-panel" id="lighting-panel" aria-labelledby="lighting-title" hidden={!lightsOpen || settling} onKeyDown={(event) => { if (event.key === 'Escape') setLightsOpen(false); }}>
         <div className="lighting-panel__top"><p className="section-kicker">THE STUDIO</p><button type="button" className="close-lights" onClick={() => setLightsOpen(false)} aria-label="Close lighting controls">×</button></div>
         <h2 id="lighting-title">Light the <em>scene.</em></h2>
         <p className="lighting-description">Set the mood, your way.</p>
@@ -282,7 +314,7 @@ export default function App() {
         </div>
       </section>
 
-      <nav className="tour-rail" aria-label="Tour chapters" aria-hidden={loading || undefined} inert={loading ? true : undefined}>
+      <nav className="tour-rail" aria-label="Tour chapters" aria-hidden={settling || undefined} inert={settling ? true : undefined}>
         <span className="tour-rail__count">{String(Math.min(Math.max(activeChapter, 1), 5)).padStart(2, '0')} <i /> 05</span>
         {TOUR_STOPS.slice(1, 6).map((stop, i) => (
           <button type="button" key={stop.id} onClick={() => goTo(stop.id)} aria-label={`Go to ${stop.label.toLowerCase()}`} aria-current={activeChapter === i + 1 ? 'location' : undefined}>
@@ -292,7 +324,7 @@ export default function App() {
         <span className="tour-rail__label">{TOUR_STOPS[activeChapter].label}</span>
       </nav>
 
-      <div className="tour-content" ref={tourRef} aria-hidden={loading || undefined} inert={loading ? true : undefined}>
+      <div className="tour-content" ref={tourRef} aria-hidden={settling || undefined} inert={settling ? true : undefined}>
         <section className="chapter chapter--hero" id="beginning" data-tour-chapter>
           <div className="chapter__inner">
             <div className="hero-copy">
@@ -300,13 +332,13 @@ export default function App() {
               <h1>M4<span className="sr-only"> — an experience in motion</span></h1>
               <p className="hero-copy__line">Made to be <em>felt.</em></p>
               <p className="hero-copy__description">A closer look at the machine<br />behind the feeling.</p>
-              <button className="engine-button" type="button" onClick={ignite} disabled={loading}><span aria-hidden="true">▶</span><span>{started ? 'REPLAY ENGINE' : 'START THE ENGINE'}</span><span aria-hidden="true">↗</span></button>
+              <button className="engine-button" type="button" onClick={ignite} disabled={settling}><span aria-hidden="true">▶</span><span>{started ? 'REPLAY ENGINE' : 'START THE ENGINE'}</span><span aria-hidden="true">↗</span></button>
               <p className="audio-hint">Sound on for the full experience.</p>
             </div>
             <div className="hero-bottom">
               <button className="scroll-cue" type="button" onClick={() => goTo('the-face')}><span>SCROLL TO EXPLORE</span><span className="scroll-cue__line" aria-hidden="true" /><span aria-hidden="true">↓</span></button>
               <div className="rotation-controls">
-                <p id="rotation-instructions">{visualAvailable ? <><span className="rotation-arrow" aria-hidden="true">⟵ &nbsp;⟶</span> DRAG TO ROTATE <span className="sr-only">or focus the 3D view and use the left and right arrow keys. Home resets the angle.</span></> : 'STATIC PREVIEW'}</p>
+                <p id="rotation-instructions">{visualAvailable ? <>{covered && <button type="button" className="unveil-cue" onClick={unveil}>TAP THE CAR TO UNVEIL</button>}<span className="rotation-arrow" aria-hidden="true">⟵ &nbsp;⟶</span> DRAG TO ROTATE <span className="sr-only">or focus the 3D view and use the left and right arrow keys. Home resets the angle.{covered ? ' Enter lifts the cover.' : ''}</span></> : 'STATIC PREVIEW'}</p>
                 <button type="button" className="auto-toggle" onClick={() => setAutoRotate((value) => !value)} aria-pressed={autoRotate} disabled={!visualAvailable}><span className="auto-indicator" aria-hidden="true" /> AUTO ROTATE <b>{autoRotate ? 'ON' : 'OFF'}</b></button>
               </div>
             </div>
@@ -372,7 +404,17 @@ export default function App() {
       </div>
 
       {phase === 'error' && <div className="scene-error" role="alert"><div><span>3D VIEW UNAVAILABLE</span><p>We couldn’t load the studio. The preview is shown instead.</p></div><button type="button" onClick={retry}>TRY AGAIN ↗</button></div>}
-      {loading && <Preloader progress={displayedProgress} leaving={phase === 'revealing'} ready={modelReady} slow={slowLoading} onSkip={skipIntro} onRetry={retry} />}
+      {(loading || inviting) && <Preloader progress={displayedProgress} leaving={inviting} ready={modelReady} slow={slowLoading} onSkip={skipIntro} onRetry={retry} />}
+      {(inviting || establishing) && (
+        <section className={`gate ${inviting ? 'gate--open' : ''} ${establishing ? 'gate--leaving' : ''}`} aria-label="Enter the BMW M4 experience" inert={establishing ? true : undefined}>
+          <p className="section-kicker">THE BMW</p>
+          <p className="gate__title" aria-hidden="true">M4</p>
+          <p className="gate__line">Made to be <em>felt.</em></p>
+          <button className="gate__enter" type="button" onClick={enter} autoFocus>ENTER</button>
+          <p className="gate__hint">SOUND ON FOR THE FULL EXPERIENCE</p>
+          {reducedMotion && <button className="gate__motion" type="button" onClick={enterWithMotion}>YOUR SYSTEM PREFERS REDUCED MOTION — ENTER WITH FULL MOTION <span aria-hidden="true">↗</span></button>}
+        </section>
+      )}
       <span className="sr-only" role="status" aria-live="polite">{soundNotice}</span>
     </main>
   );

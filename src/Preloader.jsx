@@ -18,19 +18,21 @@ const NumberReel = memo(function NumberReel({ step }) {
   );
 });
 
-/** Progress is capped by the actual model load; the poster is only a preview. */
+/**
+ * The counter sits over the live studio: the room is dark behind the first
+ * numbers and the lights come up over the covered car as it arrives. Progress
+ * is capped by the actual model load.
+ */
 export function Preloader({ progress, leaving, ready, slow, onSkip, onRetry }) {
-  const outline = clamp((progress - 8) / 28) * (1 - clamp((progress - 68) / 32)) * 0.72;
-  const car = clamp((progress - 38) / 52) * 0.9;
+  // The veil over the studio thins as the count rises, so the room emerges behind the numbers.
+  const veil = 0.55 * (1 - clamp(progress / 100));
   return (
     <section
       className={`preloader ${leaving ? 'preloader--leaving' : ''}`}
       aria-label="Preparing the BMW M4 experience"
-      style={{ '--outline-opacity': outline, '--car-opacity': car }}
+      style={{ '--veil-opacity': veil }}
     >
-      <div className="preloader__atmosphere" aria-hidden="true" />
-      <div className="preloader__shape preloader__shape--outline" aria-hidden="true" />
-      <div className="preloader__shape preloader__shape--car" aria-hidden="true" />
+      <div className="preloader__veil" aria-hidden="true" />
       <div className="preloader__vignette" aria-hidden="true" />
       <div className="preloader__readout" role="progressbar" aria-label="Loading the BMW M4 experience" aria-valuemin="0" aria-valuemax="100" aria-valuenow={progress} aria-valuetext={`${progress}%`}>
         <div className="preloader__number" aria-hidden="true">
