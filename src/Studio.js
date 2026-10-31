@@ -6,9 +6,9 @@ import { Reflector } from 'three/addons/objects/Reflector.js';
 // enough to carry a reflection of whatever stands on them.
 
 export const STUDIO = {
-  halfWidth: 3.6, // room half-size as a multiple of the car's longest dimension
-  halfDepth: 3.6,
-  height: 1.4,
+  halfWidth: 2.0, // room half-size as a multiple of the car's longest dimension
+  halfDepth: 2.9, // longer than wide: the opening camera stands at the back wall
+  height: 1.15,
   ledInset: 0.1, // LED line inset from the walls, as a fraction of the half-size
   tileWidth: 1.2, // metres, running bond, landscape
   tileHeight: 0.6,
@@ -77,8 +77,8 @@ function makeWallTexture() {
   const gradient = context.createLinearGradient(0, 0, 0, canvas.height);
   gradient.addColorStop(0, 'rgb(86, 88, 96)');
   gradient.addColorStop(0.1, 'rgb(44, 45, 50)');
-  gradient.addColorStop(0.36, 'rgb(15, 15, 17)');
-  gradient.addColorStop(1, 'rgb(7, 7, 8)');
+  gradient.addColorStop(0.36, 'rgb(19, 19, 22)');
+  gradient.addColorStop(1, 'rgb(10, 10, 12)');
   context.fillStyle = gradient;
   context.fillRect(0, 0, canvas.width, canvas.height);
   const texture = new THREE.CanvasTexture(canvas);

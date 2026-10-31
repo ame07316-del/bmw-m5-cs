@@ -5,6 +5,7 @@ import {
   advanceEstablish, blendPose, establishBlend,
 } from '../src/establish.js';
 import { TOUR_STOPS, getTourPose } from '../src/tour.js';
+import { STUDIO } from '../src/Studio.js';
 
 test('the opening holds wide, then flies in smoothly and finishes', () => {
   const start = establishBlend(0);
@@ -54,9 +55,10 @@ test('blending reaches the exact tour pose at 1 and the wide shot at 0', () => {
   assert.ok(half.distance > pose.distance && half.distance < WIDE_SHOT.distance);
 });
 
-test('the wide shot stays inside the studio room for every tour framing', () => {
-  // Room half-size is 3.6× the car; the camera cap keeps a margin at the widest yaw.
-  const cap = WIDE_SHOT.maxDistance;
-  assert.ok(cap * Math.max(Math.abs(Math.sin(WIDE_SHOT.yaw)), Math.abs(Math.cos(WIDE_SHOT.yaw))) < 3.6);
-  for (const stop of TOUR_STOPS) assert.ok(stop.distance * 2 < cap, `${stop.id} fits even with the phone framing`);
+test('the opening and every desktop tour framing fit inside the room without clamping', () => {
+  const halfW = STUDIO.halfWidth;
+  const halfD = STUDIO.halfDepth;
+  const fits = (yaw, distance) => Math.abs(Math.sin(yaw)) * distance < halfW * 0.9 && Math.abs(Math.cos(yaw)) * distance < halfD * 0.9;
+  assert.ok(fits(WIDE_SHOT.yaw, WIDE_SHOT.distance), 'the wide shot stands inside the back of the room');
+  for (const stop of TOUR_STOPS) assert.ok(fits(stop.yaw, stop.distance), `${stop.id} fits on desktop`);
 });

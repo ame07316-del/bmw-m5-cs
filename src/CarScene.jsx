@@ -8,7 +8,7 @@ import { RESUME_AFTER_DRAG_MS, advanceRotation, getLighting, performanceProfile,
 import { TOUR_STOPS, getTourPose } from './tour.js';
 import { HEM_ALPHA_TEST, createCarCover, disposeCarCover } from './CarCover.js';
 import { createStudio } from './Studio.js';
-import { WIDE_SHOT, advanceEstablish, blendPose, establishBlend } from './establish.js';
+import { advanceEstablish, blendPose, establishBlend } from './establish.js';
 import { revealState } from './shroud.js';
 
 const MODELS = {
@@ -28,6 +28,16 @@ function makeShadowTexture() {
   context.fillStyle = gradient;
   context.fillRect(0, 0, 512, 512);
   return new THREE.CanvasTexture(canvas);
+}
+
+/** Farthest the camera may stand from `target` along `yaw` and remain inside the room. */
+export function roomDistanceLimit(bounds, yaw, target) {
+  const margin = 0.9;
+  const sx = Math.abs(Math.sin(yaw));
+  const cz = Math.abs(Math.cos(yaw));
+  const alongX = sx > 1e-4 ? (bounds.halfW * margin - Math.abs(target.x)) / sx : Infinity;
+  const alongZ = cz > 1e-4 ? (bounds.halfD * margin - Math.abs(target.z)) / cz : Infinity;
+  return Math.max(0.1, Math.min(alongX, alongZ));
 }
 
 /** A live studio camera moves through detail shots as the visitor scrolls. */
@@ -237,13 +247,23 @@ export const CarScene = forwardRef(function CarScene({
         pose = blendPose(pose, opening.blend, opening.drift, baseFov);
         fov = pose.fov;
       }
+      const mobileFit = aspect < 0.95 ? Math.max(1, pose.mobileFrame / aspect) : 1;
+      let distance = maximum * pose.distance * mobileFit * (1 - pulse * 0.02);
+      lookTarget.set(...pose.target).multiplyScalar(maximum);
+      // The camera never leaves the room: if a framing would, it stops short of
+      // the wall and widens the lens by the same ratio so the composition holds.
+      if (studio) {
+        const limit = roomDistanceLimit(studio.bounds, pose.yaw, lookTarget);
+        if (distance > limit) {
+          const widen = distance / limit;
+          fov = Math.min(92, THREE.MathUtils.radToDeg(2 * Math.atan(Math.tan(THREE.MathUtils.degToRad(fov) / 2) * widen)));
+          distance = limit;
+        }
+      }
       if (camera.fov !== fov) {
         camera.fov = fov;
         camera.updateProjectionMatrix();
       }
-      const mobileFit = aspect < 0.95 ? Math.max(1, pose.mobileFrame / aspect) : 1;
-      const distance = Math.min(maximum * pose.distance * mobileFit, maximum * WIDE_SHOT.maxDistance) * (1 - pulse * 0.02);
-      lookTarget.set(...pose.target).multiplyScalar(maximum);
       camera.position.set(
         lookTarget.x + Math.sin(pose.yaw) * distance,
         lookTarget.y + pose.tilt * distance,

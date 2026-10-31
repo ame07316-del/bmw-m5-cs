@@ -1,16 +1,16 @@
-// The opening shot: a wide lens, far back and above, that takes in the whole
-// studio with the car small under its light. It holds, then flies in to the
-// first tour view. Everything is a pure function of elapsed time so the scene
+// The opening shot: a wide lens from the back of the studio that takes in the
+// whole room with the car standing in its middle. It holds, then pushes in
+// along the same line of sight to the first tour view, so the two frames read
+// as one continuous move. Everything is a pure function of elapsed time so the scene
 // stays deterministic and testable.
 
 export const WIDE_SHOT = {
-  yaw: 0.74, // three-quarter front, measured like the tour (0 = car front)
-  tilt: 0.3, // camera height as a fraction of its distance
-  distance: 2.35, // fraction of the car's longest dimension
-  target: [0, 0.075, 0], // aim a little above the car so the ceiling line is in frame
-  fov: 56, // wide lens; the tour uses 36–39
-  mobileFrame: 0.95,
-  maxDistance: 4.2, // camera distance cap (fraction of the car) so it never leaves the room, even on a narrow phone
+  yaw: 0.2, // almost the hero angle, so the fly-in is one continuous push-in
+  tilt: 0.17, // camera height as a fraction of its distance: a raised eye line
+  distance: 2.4, // fraction of the car's longest dimension; the camera sits at the back of the room
+  target: [0, 0.05, 0], // aim a touch above the car so the ceiling line stays in frame
+  fov: 50, // wide lens; the tour uses 36–39
+  mobileFrame: 0.9,
 };
 
 export const ESTABLISH_HOLD_MS = 1600;

@@ -76,7 +76,7 @@ button:disabled, input:disabled { cursor: not-allowed; opacity: .45; }
 .sound-toggle:hover, .light-toggle:hover { color: white; }
 .topbar__actions { transition: opacity 900ms ease; }
 .intro-active .brand, .is-establishing .brand, .is-establishing .topbar__actions { opacity: 0; }
-.is-establishing .topbar__actions { pointer-events: none; }
+.is-establishing .topbar__actions { pointer-events: none; transition: none; }
 
 .lighting-panel { position: fixed; z-index: 13; right: 4.5%; top: clamp(72px, 10vh, 100px); width: 250px; padding: 22px; border: 1px solid rgba(243,240,235,.16); background: rgba(14,14,15,.96); }
 .lighting-panel[hidden] { display: none; }
